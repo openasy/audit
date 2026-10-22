@@ -1,0 +1,35 @@
+# Audit. CI sends the report of osv-scanner, Trivy or Grype and gets back whether the check passes (ADR 0044).
+#
+#   openssl rand -hex 32 > openasy-kek   # audit's key: sign-in secrets (ADR 0021). Keep it with your backups
+#   docker compose up -d
+#   docker compose logs audit | grep 'no owner yet'   # the one-time link that creates the owner account
+services:
+  audit:
+    image: ghcr.io/openasy/audit:0.1.0
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: [/tmp]
+    ports:
+      - "127.0.0.1:8080:8080"   # UI and API; put a TLS proxy in front to reach it from elsewhere
+    volumes:
+      - audit-data:/data   # SQLite database: projects, scans, advisories, the package inventory and decisions
+    secrets:
+      - openasy-kek   # mounted at /run/secrets/openasy-kek
+    environment:
+      # The address people open Audit at; with a TLS proxy in front, its https:// URL.
+      AUDIT_PUBLIC_URL: ${AUDIT_PUBLIC_URL:-http://localhost:8080}
+      # For CI: it can send scans and nothing else. Or use an API token with the editor role from Settings.
+      AUDIT_INGEST_TOKEN: ${AUDIT_INGEST_TOKEN:-}
+      # Sign in with your identity provider (OIDC), see the README:
+      # AUDIT_OIDC_ISSUER: https://login.example.com
+      # AUDIT_OIDC_CLIENT_ID: audit
+      # AUDIT_OIDC_CLIENT_SECRET: ${AUDIT_OIDC_CLIENT_SECRET}
+
+volumes:
+  audit-data:
+
+secrets:
+  openasy-kek:
+    file: ./openasy-kek
