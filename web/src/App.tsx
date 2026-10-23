@@ -25,22 +25,13 @@ import {
   type Column,
   type ProductId,
   useThemePreference,
+  useAgo,
 } from "@openasy/ui";
 import { AccountSettings, AuthGate, MembersSettings, SignInSettings, TokensSettings, useAuth } from "@openasy/auth/react";
 import { Bug, CircleSlash, FolderGit2, Package, KeyRound, LogIn, LogOut, Settings2, Trash2, UserRound, Users, X } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { api, MfaSetupRequired, Unauthorized, type FailOn, type Finding, type PackageUse, type ProductLink, type Project, type Scan, type ScanDetail, type Severity, type Summary } from "./api.ts";
-
-function ago(iso: string | null | undefined): string {
-  if (!iso) return "never";
-  const s = Math.round((Date.now() - Date.parse(iso)) / 1000);
-  if (s < 60) return "just now";
-  if (s < 3600) return `${Math.round(s / 60)} min ago`;
-  if (s < 86_400) return `${Math.round(s / 3600)} h ago`;
-  return `${Math.round(s / 86_400)} d ago`;
-}
-
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+import { useT, type T } from "./i18n.ts";
 
 const PAGES = ["projects", "packages", "setup", "account", "members", "signin", "tokens"] as const;
 type Route = { page: "findings" | (typeof PAGES)[number] } | { page: "project" | "scan"; id: string };
@@ -73,18 +64,19 @@ function useApi() {
 type Call = ReturnType<typeof useApi>;
 
 const SEVERITIES: Severity[] = ["critical", "high", "medium", "low"];
-const FAIL_ON: Array<{ value: FailOn; label: string }> = [
-  { value: "critical", label: "Critical" },
-  { value: "high", label: "High or worse" },
-  { value: "medium", label: "Medium or worse" },
-  { value: "low", label: "Any finding" },
-  { value: "none", label: "Never fail" },
-];
+const FAIL_ON = (t: T): Array<{ value: FailOn; label: string }> => ([
+  { value: "critical", label: t("failOn.critical") },
+  { value: "high", label: t("failOn.highOrWorse") },
+  { value: "medium", label: t("failOn.mediumOrWorse") },
+  { value: "low", label: t("failOn.anyFinding") },
+  { value: "none", label: t("failOn.neverFail") },
+]);
 
 /** Compact severity counts; each badge carries the full name for screen readers. */
 function SevCounts({ counts }: { counts: Record<Severity, number> }) {
+  const t = useT();
   const shown = SEVERITIES.filter((s) => counts[s] > 0);
-  if (!shown.length) return <span className="text-xs text-fg-muted">None</span>;
+  if (!shown.length) return <span className="text-xs text-fg-muted">{t("sevCounts.none")}</span>;
   return (
     <span className="flex flex-wrap gap-1">
       {shown.map((s) => (
@@ -118,6 +110,8 @@ interface Detail {
 }
 
 function FindingPanel({ finding, call, onClose, onChanged }: { finding: Detail; call: Call; onClose: () => void; onChanged: () => void }) {
+  const ago = useAgo();
+  const msg = useT();
   const { can } = useAuth();
   const [deciding, setDeciding] = useState(false);
   const [state, setState] = useState<"not-affected" | "false-positive" | "accepted">("not-affected");
@@ -142,11 +136,11 @@ function FindingPanel({ finding, call, onClose, onChanged }: { finding: Detail; 
 
   return (
     <Panel
-      aria-label={`${finding.advisory} details`}
+      aria-label={msg("findingPanel.details", { advisory: finding.advisory })}
       title={<span className="audit-wrap font-mono text-sm">{finding.advisory}</span>}
-      description={finding.aliases.length ? `Also ${finding.aliases.join(", ")}` : finding.project.name}
+      description={finding.aliases.length ? msg("findingPanel.also", { value: finding.aliases.join(", ") }) : finding.project.name}
       actions={
-        <IconButton label="Close details" size="sm" onClick={onClose}>
+        <IconButton label={msg("findingPanel.closeDetails")} size="sm" onClick={onClose}>
           <X />
         </IconButton>
       }
@@ -155,7 +149,7 @@ function FindingPanel({ finding, call, onClose, onChanged }: { finding: Detail; 
         <div className="flex flex-wrap items-center gap-1.5">
           <SeverityBadge severity={finding.severity} />
           <Badge mono>{finding.ecosystem}</Badge>
-          {finding.fixedVersion ? <Badge tone="success">Fixed in {finding.fixedVersion}</Badge> : <Badge>No fix known</Badge>}
+          {finding.fixedVersion ? <Badge tone="success">{msg("findingPanel.fixedIn", { fixedVersion: finding.fixedVersion })}</Badge> : <Badge>{msg("findingPanel.noFixKnown")}</Badge>}
         </div>
         <span className="audit-wrap font-mono text-xs">
           {finding.package} {finding.version}
@@ -165,24 +159,24 @@ function FindingPanel({ finding, call, onClose, onChanged }: { finding: Detail; 
         {t && (
           <div className="flex flex-col gap-1 rounded-md border border-line p-2.5 text-xs">
             <span>
-              <StatusBadge tone={t.active ? "success" : "neutral"}>{t.state === "not-affected" ? "Not affected" : t.state === "false-positive" ? "False positive" : t.active ? "Accepted risk" : "Acceptance expired"}</StatusBadge>
+              <StatusBadge tone={t.active ? "success" : "neutral"}>{t.state === "not-affected" ? msg("findingPanel.notAffected") : t.state === "false-positive" ? msg("findingPanel.falsePositive") : t.active ? msg("findingPanel.acceptedRisk") : msg("findingPanel.acceptanceExpired")}</StatusBadge>
             </span>
             <span>{t.reason}</span>
             <span className="text-fg-muted">
               {t.by ? `${t.by}, ` : ""}
               {ago(t.at)}
-              {t.expiresAt ? `, until ${new Date(t.expiresAt).toLocaleDateString()}` : ""}
+              {t.expiresAt ? msg("findingPanel.until", { value: new Date(t.expiresAt).toLocaleDateString() }) : ""}
             </span>
           </div>
         )}
         {can("editor") && (
           <div className="flex gap-2 border-t border-line pt-3">
             <Button size="sm" icon={<CircleSlash />} onClick={() => setDeciding(true)}>
-              {t ? "Change decision" : "Triage"}
+              {t ? msg("findingPanel.changeDecision") : msg("findingPanel.triage")}
             </Button>
             {t && (
               <Button size="sm" onClick={() => void reopen()}>
-                Open again
+                {msg("findingPanel.openAgain")}
               </Button>
             )}
           </div>
@@ -190,41 +184,41 @@ function FindingPanel({ finding, call, onClose, onChanged }: { finding: Detail; 
         <Dialog
           open={deciding}
           onOpenChange={(open) => !open && close()}
-          title={`Decide about ${finding.advisory}`}
-          description="The decision follows this advisory to every branch, so a pull request that adds it does not fail. Say why, for the next review."
+          title={msg("findingPanel.decideAbout", { advisory: finding.advisory })}
+          description={msg("findingPanel.theDecisionFollowsThisAdvisory")}
           onSubmit={decide}
           footer={
             <>
               <Button type="button" onClick={close}>
-                Cancel
+                {msg("findingPanel.cancel")}
               </Button>
               <Button type="submit" variant="primary" disabled={reason.trim().length < 3}>
-                Save decision
+                {msg("findingPanel.saveDecision")}
               </Button>
             </>
           }
         >
           <SelectField
-            label="Decision"
+            label={msg("findingPanel.decision")}
             value={state}
             onChange={(e) => setState(e.target.value as typeof state)}
             options={[
-              { value: "not-affected", label: "Not affected: the vulnerable code is not used" },
-              { value: "false-positive", label: "False positive" },
-              { value: "accepted", label: "Accepted risk" },
+              { value: "not-affected", label: msg("findingPanel.notAffectedTheVulnerableCode") },
+              { value: "false-positive", label: msg("findingPanel.falsePositive") },
+              { value: "accepted", label: msg("findingPanel.acceptedRisk") },
             ]}
           />
-          <TextField label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} hint="Why, for the next review." error={error} />
+          <TextField label={msg("findingPanel.reason")} value={reason} onChange={(e) => setReason(e.target.value)} hint={msg("findingPanel.whyForTheNextReview")} error={error} />
           {state === "accepted" && (
             <SelectField
-              label="For"
+              label={msg("findingPanel.for")}
               value={days}
               onChange={(e) => setDays(e.target.value)}
               options={[
-                { value: "30", label: "30 days" },
-                { value: "90", label: "90 days" },
-                { value: "180", label: "180 days" },
-                { value: "365", label: "1 year" },
+                { value: "30", label: msg("findingPanel.n30Days") },
+                { value: "90", label: msg("findingPanel.n90Days") },
+                { value: "180", label: msg("findingPanel.n180Days") },
+                { value: "365", label: msg("findingPanel.n1Year") },
               ]}
             />
           )}
@@ -238,6 +232,8 @@ type Tab = "open" | "suppressed" | "resolved";
 
 /** Findings of every project, or of one when projectId is given. */
 function FindingsTable({ call, projectId, summary, reload }: { call: Call; projectId?: string; summary?: { open: Record<Severity, number> }; reload: () => void }) {
+  const ago = useAgo();
+  const t = useT();
   const [tab, setTab] = useState<Tab>("open");
   const [sev, setSev] = useState<string[]>([]);
   const [q, setQ] = useState("");
@@ -263,10 +259,10 @@ function FindingsTable({ call, projectId, summary, reload }: { call: Call; proje
   const loadMore = () => more && query(more).then((r) => (setRows((x) => [...(x ?? []), ...r.findings]), setMore(r.nextCursor)));
 
   const columns: Column<Finding>[] = [
-    { id: "sev", header: "Severity", width: "104px", cell: (f) => <SeverityBadge severity={f.severity} /> },
+    { id: "sev", header: t("findingsTable.severity"), width: "104px", cell: (f) => <SeverityBadge severity={f.severity} /> },
     {
       id: "advisory",
-      header: "Advisory",
+      header: t("findingsTable.advisory"),
       width: "30%",
       cell: (f) => (
         <span className="flex min-w-0 flex-col">
@@ -281,7 +277,7 @@ function FindingsTable({ call, projectId, summary, reload }: { call: Call; proje
     },
     {
       id: "package",
-      header: "Package",
+      header: t("findingsTable.package"),
       width: "26%",
       cell: (f) => (
         <span className="flex min-w-0 flex-col">
@@ -292,42 +288,42 @@ function FindingsTable({ call, projectId, summary, reload }: { call: Call; proje
         </span>
       ),
     },
-    { id: "fix", header: "Fix", cell: (f) => (f.fixedVersion ? <Badge tone="success">{f.fixedVersion}</Badge> : <span className="text-xs text-fg-muted">None known</span>) },
-    ...(projectId ? [] : [{ id: "repo", header: "Project", cell: (f: Finding) => <span className="text-xs">{f.project.name}</span> } satisfies Column<Finding>]),
-    { id: "seen", header: "First seen", sortValue: (f) => f.firstSeen, cell: (f) => <span className="text-xs whitespace-nowrap">{ago(f.firstSeen)}</span> },
+    { id: "fix", header: t("findingsTable.fix"), cell: (f) => (f.fixedVersion ? <Badge tone="success">{f.fixedVersion}</Badge> : <span className="text-xs text-fg-muted">{t("findingsTable.noneKnown")}</span>) },
+    ...(projectId ? [] : [{ id: "repo", header: t("findingsTable.project"), cell: (f: Finding) => <span className="text-xs">{f.project.name}</span> } satisfies Column<Finding>]),
+    { id: "seen", header: t("findingsTable.firstSeen"), sortValue: (f) => f.firstSeen, cell: (f) => <span className="text-xs whitespace-nowrap">{ago(f.firstSeen)}</span> },
   ];
 
   return (
     <>
       <Tabs<Tab>
-        label="Finding views"
+        label={t("findingsTable.findingViews")}
         value={tab}
         onChange={setTab}
         items={[
-          { value: "open", label: "Open" },
-          { value: "suppressed", label: "Decided about" },
-          { value: "resolved", label: "Fixed" },
+          { value: "open", label: t("findingsTable.open") },
+          { value: "suppressed", label: t("findingsTable.decidedAbout") },
+          { value: "resolved", label: t("findingsTable.fixed") },
         ]}
       />
       <FilterBar onClear={() => (setSev([]), setQ(""))}>
-        <FacetFilter label="Severity" selected={sev} onChange={setSev} options={SEVERITIES.map((s) => ({ value: s, label: s.charAt(0).toUpperCase() + s.slice(1), count: tab === "open" ? summary?.open[s] : undefined }))} />
-        <SearchInput label="Search rule, path or message" className="w-64" value={q} onChange={(e) => setQ(e.target.value)} />
+        <FacetFilter label={t("findingsTable.severity")} selected={sev} onChange={setSev} options={SEVERITIES.map((s) => ({ value: s, label: s.charAt(0).toUpperCase() + s.slice(1), count: tab === "open" ? summary?.open[s] : undefined }))} />
+        <SearchInput label={t("findingsTable.searchRulePathOrMessage")} className="w-64" value={q} onChange={(e) => setQ(e.target.value)} />
       </FilterBar>
       <div className={open ? "grid gap-2.5 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]" : "grid gap-2.5"}>
         <Panel
-          title={tab === "open" ? "Open" : tab === "suppressed" ? "False positives and accepted risk" : "Fixed"}
-          description="Findings of the default branch, most severe first"
+          title={tab === "open" ? t("findingsTable.open") : tab === "suppressed" ? t("findingsTable.falsePositivesAndAcceptedRisk") : t("findingsTable.fixed")}
+          description={t("findingsTable.findingsOfTheDefaultBranch")}
           flush
           footer={
             more ? (
               <Button size="sm" onClick={loadMore}>
-                Load more
+                {t("findingsTable.loadMore")}
               </Button>
             ) : undefined
           }
         >
           <DataTable
-            label="Findings"
+            label={t("findingsTable.findings")}
             columns={columns}
             rows={rows ?? []}
             loading={!rows}
@@ -337,13 +333,13 @@ function FindingsTable({ call, projectId, summary, reload }: { call: Call; proje
             minWidth={860}
             pageSize={50}
             empty={
-              <EmptyState title={tab === "open" ? "No open findings" : tab === "suppressed" ? "Nothing decided about yet" : "Nothing fixed yet"}>
+              <EmptyState title={tab === "open" ? t("findingsTable.noOpenFindings") : tab === "suppressed" ? t("findingsTable.nothingDecidedAboutYet") : t("findingsTable.nothingFixedYet")}>
                 {tab === "open" && summary && !Object.values(summary.open).some(Boolean) ? (
                   <>
-                    Send a scan from CI to see findings. See <a href="/setup">Setup</a>.
+                    {t("findingsTable.sendAScanFromCi")}{" "}<a href="/setup">{t("findingsTable.setup")}</a>.
                   </>
                 ) : (
-                  "Nothing matches these filters."
+                  t("findingsTable.nothingMatchesTheseFilters")
                 )}
               </EmptyState>
             }
@@ -367,19 +363,21 @@ function FindingsTable({ call, projectId, summary, reload }: { call: Call; proje
 }
 
 function FindingsPage({ call, summary, reload }: { call: Call; summary?: Summary; reload: () => void }) {
+  const ago = useAgo();
+  const t = useT();
   const s = summary;
   return (
     <>
-      <PageHeader title="Findings" description={s ? `${plural(s.projects, "project", "projects")} · last scan ${ago(s.lastScanAt)}` : undefined} />
+      <PageHeader title={t("findingsPage.findings")} description={s ? t("findingsPage.lastScan", { plural: t("plurals.project", { count: s.projects }), ago: ago(s.lastScanAt) }) : undefined} />
       {s && (
         <KpiGrid minWidth={150}>
-          <KpiCard label="Critical" value={s.open.critical} footer={<SeverityBadge severity="critical" />} />
-          <KpiCard label="High" value={s.open.high} footer={<SeverityBadge severity="high" />} />
-          <KpiCard label="Medium" value={s.open.medium} footer={<SeverityBadge severity="medium" />} />
-          <KpiCard label="Low" value={s.open.low} footer={<SeverityBadge severity="low" />} />
-          <KpiCard label="Fix available" value={s.fixable} tone="info" />
-          <KpiCard label="Failed checks, 7 days" value={s.failingChecks} tone={s.failingChecks ? "warning" : "success"} />
-          <KpiCard label="Decided about" value={s.suppressed} tone="info" />
+          <KpiCard label={t("findingsPage.critical")} value={s.open.critical} footer={<SeverityBadge severity="critical" />} />
+          <KpiCard label={t("findingsPage.high")} value={s.open.high} footer={<SeverityBadge severity="high" />} />
+          <KpiCard label={t("findingsPage.medium")} value={s.open.medium} footer={<SeverityBadge severity="medium" />} />
+          <KpiCard label={t("findingsPage.low")} value={s.open.low} footer={<SeverityBadge severity="low" />} />
+          <KpiCard label={t("findingsPage.fixAvailable")} value={s.fixable} tone="info" />
+          <KpiCard label={t("findingsPage.failedChecks7Days")} value={s.failingChecks} tone={s.failingChecks ? "warning" : "success"} />
+          <KpiCard label={t("findingsPage.decidedAbout")} value={s.suppressed} tone="info" />
         </KpiGrid>
       )}
       <FindingsTable call={call} summary={s} reload={reload} />
@@ -388,16 +386,19 @@ function FindingsPage({ call, summary, reload }: { call: Call; summary?: Summary
 }
 
 function ScanStatus({ s }: { s: Pick<Scan, "passed" | "kind"> }) {
-  return s.passed ? <StatusBadge tone="success">Passed</StatusBadge> : <StatusBadge tone="danger">Failed</StatusBadge>;
+  const t = useT();
+  return s.passed ? <StatusBadge tone="success">{t("scanStatus.passed")}</StatusBadge> : <StatusBadge tone="danger">{t("scanStatus.failed")}</StatusBadge>;
 }
 
 function ProjectsPage({ call }: { call: Call }) {
+  const ago = useAgo();
+  const t = useT();
   const [rows, setRows] = useState<Project[]>();
   useEffect(() => void call<{ projects: Project[] }>("/api/v1/projects?limit=500").then((r) => setRows(r.projects), () => setRows([])), [call]);
   const columns: Column<Project>[] = [
     {
       id: "name",
-      header: "Project",
+      header: t("projectsPage.project"),
       width: "28%",
       sortValue: (r) => r.name,
       cell: (r) => (
@@ -406,25 +407,25 @@ function ProjectsPage({ call }: { call: Call }) {
         </a>
       ),
     },
-    { id: "branch", header: "Default branch", mono: true, cell: (r) => r.defaultBranch },
-    { id: "open", header: "Open", cell: (r) => <SevCounts counts={r.open} /> },
-    { id: "last", header: "Last scan", cell: (r) => (r.lastScan ? <span className="text-xs">{ago(r.lastScan.at)}, {r.lastScan.kind === "baseline" ? "default branch" : r.lastScan.branch}</span> : "–") },
-    { id: "check", header: "Check", cell: (r) => (r.lastScan ? <ScanStatus s={{ passed: r.lastScan.passed, kind: r.lastScan.kind }} /> : "–") },
+    { id: "branch", header: t("projectsPage.defaultBranch"), mono: true, cell: (r) => r.defaultBranch },
+    { id: "open", header: t("projectsPage.open"), cell: (r) => <SevCounts counts={r.open} /> },
+    { id: "last", header: t("projectsPage.lastScan"), cell: (r) => (r.lastScan ? <span className="text-xs">{ago(r.lastScan.at)}, {r.lastScan.kind === "baseline" ? t("projectsPage.defaultBranch2") : r.lastScan.branch}</span> : "–") },
+    { id: "check", header: t("projectsPage.check"), cell: (r) => (r.lastScan ? <ScanStatus s={{ passed: r.lastScan.passed, kind: r.lastScan.kind }} /> : "–") },
   ];
   return (
     <>
-      <PageHeader title="Projects" description="A project appears with its first scan. Its default branch is the baseline; other branches are compared with it." />
+      <PageHeader title={t("projectsPage.projects")} description={t("projectsPage.aProjectAppearsWithIts")} />
       <Panel flush>
         <DataTable
-          label="Projects"
+          label={t("projectsPage.projects")}
           columns={columns}
           rows={rows ?? []}
           loading={!rows}
           getRowId={(r) => r.id}
           minWidth={760}
           empty={
-            <EmptyState title="No projects yet">
-              Send a scan from CI. See <a href="/setup">Setup</a>.
+            <EmptyState title={t("projectsPage.noProjectsYet")}>
+              {t("projectsPage.sendAScanFromCi")}{" "}<a href="/setup">{t("projectsPage.setup")}</a>.
             </EmptyState>
           }
         />
@@ -434,6 +435,8 @@ function ProjectsPage({ call }: { call: Call }) {
 }
 
 function ProjectPage({ call, id, reload }: { call: Call; id: string; reload: () => void }) {
+  const ago = useAgo();
+  const t = useT();
   const { can } = useAuth();
   const [repo, setRepo] = useState<Project | null>();
   const [scans, setScans] = useState<Scan[]>();
@@ -464,12 +467,12 @@ function ProjectPage({ call, id, reload }: { call: Call; id: string; reload: () 
       navigate("/projects");
     }, (err: Error) => setError(err.message));
 
-  if (repo === null) return <EmptyState title="Project not found">It may have been deleted. <a href="/projects">Back to projects</a>.</EmptyState>;
+  if (repo === null) return <EmptyState title={t("projectPage.projectNotFound")}>{t("projectPage.itMayHaveBeenDeleted")}{" "}<a href="/projects">{t("projectPage.backToProjects")}</a>.</EmptyState>;
 
   const columns: Column<Scan>[] = [
     {
       id: "when",
-      header: "Scan",
+      header: t("projectPage.scan"),
       sortValue: (s) => s.createdAt,
       cell: (s) => (
         <a href={`/scans/${s.id}`} className="text-xs whitespace-nowrap">
@@ -477,41 +480,41 @@ function ProjectPage({ call, id, reload }: { call: Call; id: string; reload: () 
         </a>
       ),
     },
-    { id: "branch", header: "Branch", cell: (s) => <span className="audit-wrap font-mono text-xs">{s.pullRequest ? `#${s.pullRequest} ${s.branch}` : s.branch}</span> },
-    { id: "kind", header: "Kind", cell: (s) => (s.kind === "baseline" ? <Badge>Baseline</Badge> : <Badge tone="info">Change</Badge>) },
-    { id: "total", header: "Reported", align: "right", cell: (s) => s.total },
-    { id: "new", header: "New", align: "right", cell: (s) => s.new },
-    { id: "check", header: "Check", cell: (s) => <ScanStatus s={s} /> },
+    { id: "branch", header: t("projectPage.branch"), cell: (s) => <span className="audit-wrap font-mono text-xs">{s.pullRequest ? `#${s.pullRequest} ${s.branch}` : s.branch}</span> },
+    { id: "kind", header: t("projectPage.kind"), cell: (s) => (s.kind === "baseline" ? <Badge>{t("projectPage.baseline")}</Badge> : <Badge tone="info">{t("projectPage.change")}</Badge>) },
+    { id: "total", header: t("projectPage.reported"), align: "right", cell: (s) => s.total },
+    { id: "new", header: t("projectPage.new"), align: "right", cell: (s) => s.new },
+    { id: "check", header: t("projectPage.check"), cell: (s) => <ScanStatus s={s} /> },
   ];
   return (
     <>
-      <PageHeader title={repo?.name ?? "Project"} description={repo ? `Default branch ${repo.defaultBranch} · ${plural(Object.values(repo.open).reduce((a, b) => a + b, 0), "open finding")}` : undefined} />
+      <PageHeader title={repo?.name ?? t("projectPage.project")} description={repo ? t("projectPage.defaultBranch", { defaultBranch: repo.defaultBranch, plural: t("plurals.openFinding", { count: Object.values(repo.open).reduce((a, b) => a + b, 0) }) }) : undefined} />
       {can("admin") && repo && (
-        <Panel title="Policy" description="What a check treats as a failure. Only advisories the default branch does not have, and nobody has decided about, can fail it.">
+        <Panel title={t("projectPage.policy")} description={t("projectPage.whatACheckTreatsAs")}>
           <div className="grid gap-2 sm:grid-cols-2">
-            <SelectField label="Fail the check for" value={failOn} onChange={(e) => setFailOn(e.target.value as FailOn)} options={FAIL_ON} />
-            <TextField label="Default branch" value={branch} onChange={(e) => setBranch(e.target.value)} hint="Its scans are the baseline." error={error} />
+            <SelectField label={t("projectPage.failTheCheckFor")} value={failOn} onChange={(e) => setFailOn(e.target.value as FailOn)} options={FAIL_ON(t)} />
+            <TextField label={t("projectPage.defaultBranch2")} value={branch} onChange={(e) => setBranch(e.target.value)} hint={t("projectPage.itsScansAreTheBaseline")} error={error} />
           </div>
           <div className="mt-3 flex gap-2">
             <Button variant="primary" onClick={() => void save()} disabled={failOn === repo.failOn && branch === repo.defaultBranch}>
-              Save policy
+              {t("projectPage.savePolicy")}
             </Button>
             <Button icon={<Trash2 />} onClick={() => setRemoving(true)}>
-              Delete project
+              {t("projectPage.deleteProject")}
             </Button>
           </div>
           <Dialog
             open={removing}
             onOpenChange={setRemoving}
-            title={`Delete ${repo.name}?`}
-            description="Its scans, findings and decisions are deleted. A later scan creates it again, without them."
+            title={t("projectPage.delete", { name: repo.name })}
+            description={t("projectPage.itsScansFindingsAndDecisions")}
             footer={
               <>
                 <Button type="button" onClick={() => setRemoving(false)}>
-                  Cancel
+                  {t("projectPage.cancel")}
                 </Button>
                 <Button type="button" variant="primary" onClick={() => void remove()}>
-                  Delete
+                  {t("projectPage.delete2")}
                 </Button>
               </>
             }
@@ -521,54 +524,56 @@ function ProjectPage({ call, id, reload }: { call: Call; id: string; reload: () 
         </Panel>
       )}
       <FindingsTable call={call} projectId={id} summary={repo ?? undefined} reload={() => (load(), reload())} />
-      <Panel title="Scans" flush>
-        <DataTable label="Scans" columns={columns} rows={scans ?? []} loading={!scans} getRowId={(s) => s.id} minWidth={640} empty={<EmptyState title="No scans">Nothing has been sent for this project.</EmptyState>} />
+      <Panel title={t("projectPage.scans")} flush>
+        <DataTable label={t("projectPage.scans")} columns={columns} rows={scans ?? []} loading={!scans} getRowId={(s) => s.id} minWidth={640} empty={<EmptyState title={t("projectPage.noScans")}>{t("projectPage.nothingHasBeenSentFor")}</EmptyState>} />
       </Panel>
     </>
   );
 }
 
 function ScanPage({ call, id, reload }: { call: Call; id: string; reload: () => void }) {
+  const ago = useAgo();
+  const t = useT();
   const [scan, setScan] = useState<ScanDetail | null>();
   const [open, setOpen] = useState<ScanDetail["findings"][number] | null>(null);
   const load = useCallback(() => void call<ScanDetail>(`/api/v1/scans/${id}`).then(setScan, () => setScan(null)), [call, id]);
   useEffect(load, [load]);
-  if (scan === null) return <EmptyState title="Scan not found">It may be older than the retention period.</EmptyState>;
+  if (scan === null) return <EmptyState title={t("scanPage.scanNotFound")}>{t("scanPage.itMayBeOlderThan")}</EmptyState>;
 
   const columns: Column<ScanDetail["findings"][number]>[] = [
-    { id: "sev", header: "Severity", width: "104px", cell: (f) => <SeverityBadge severity={f.severity} /> },
-    { id: "advisory", header: "Advisory", cell: (f) => <span className="audit-wrap font-mono text-xs">{f.advisory}</span> },
+    { id: "sev", header: t("scanPage.severity"), width: "104px", cell: (f) => <SeverityBadge severity={f.severity} /> },
+    { id: "advisory", header: t("scanPage.advisory"), cell: (f) => <span className="audit-wrap font-mono text-xs">{f.advisory}</span> },
     {
       id: "package",
-      header: "Package",
+      header: t("scanPage.package"),
       cell: (f) => (
         <span className="audit-wrap font-mono text-xs">
           {f.package} {f.version}
         </span>
       ),
     },
-    { id: "fix", header: "Fix", cell: (f) => (f.fixedVersion ? <Badge tone="success">{f.fixedVersion}</Badge> : <span className="text-xs text-fg-muted">None known</span>) },
-    { id: "state", header: "State", cell: (f) => (f.suppressed ? <Badge>Decided</Badge> : <Badge tone="danger">New</Badge>) },
+    { id: "fix", header: t("scanPage.fix"), cell: (f) => (f.fixedVersion ? <Badge tone="success">{f.fixedVersion}</Badge> : <span className="text-xs text-fg-muted">{t("scanPage.noneKnown")}</span>) },
+    { id: "state", header: t("scanPage.state"), cell: (f) => (f.suppressed ? <Badge>{t("scanPage.decided")}</Badge> : <Badge tone="danger">{t("scanPage.new")}</Badge>) },
   ];
   return (
     <>
       <PageHeader
-        title={scan ? (scan.pullRequest ? `Pull request ${scan.pullRequest}` : `Scan of ${scan.branch}`) : "Scan"}
+        title={scan ? (scan.pullRequest ? t("scanPage.pullRequest", { pullRequest: scan.pullRequest }) : t("scanPage.scanOf", { branch: scan.branch })) : t("scanPage.scan")}
         description={scan ? `${scan.project.name} · ${scan.branch}${scan.commit ? ` · ${scan.commit.slice(0, 8)}` : ""} · ${scan.tool} · ${ago(scan.createdAt)}` : undefined}
         actions={scan && <ScanStatus s={scan} />}
       />
       {scan && (
         <KpiGrid minWidth={150}>
-          <KpiCard label="Reported" value={scan.total} />
-          <KpiCard label="New" value={scan.new} tone={scan.new ? "warning" : "success"} />
-          <KpiCard label="Blocking" value={scan.blocking} tone={scan.blocking ? "danger" : "success"} footer={<span className="text-xs text-fg-muted">{FAIL_ON.find((f) => f.value === scan.failOn)?.label}</span>} />
-          <KpiCard label="Decided about" value={scan.suppressed} tone="info" />
+          <KpiCard label={t("scanPage.reported")} value={scan.total} />
+          <KpiCard label={t("scanPage.new")} value={scan.new} tone={scan.new ? "warning" : "success"} />
+          <KpiCard label={t("scanPage.blocking")} value={scan.blocking} tone={scan.blocking ? "danger" : "success"} footer={<span className="text-xs text-fg-muted">{FAIL_ON(t).find((f) => f.value === scan.failOn)?.label}</span>} />
+          <KpiCard label={t("scanPage.decidedAbout")} value={scan.suppressed} tone="info" />
         </KpiGrid>
       )}
       <div className={open ? "grid gap-2.5 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]" : "grid gap-2.5"}>
-        <Panel title="What this scan added" description={scan?.kind === "baseline" ? "A scan of the default branch is the baseline; everything it reports is new the first time." : "Findings the default branch does not have."} flush>
+        <Panel title={t("scanPage.whatThisScanAdded")} description={scan?.kind === "baseline" ? t("scanPage.aScanOfTheDefault") : t("scanPage.findingsTheDefaultBranchDoes")} flush>
           <DataTable
-            label="New findings"
+            label={t("scanPage.newFindings")}
             columns={columns}
             rows={scan?.findings ?? []}
             loading={scan === undefined}
@@ -576,7 +581,7 @@ function ScanPage({ call, id, reload }: { call: Call; id: string; reload: () => 
             onRowClick={(f) => setOpen(f)}
             activeRowId={open?.fingerprint}
             minWidth={640}
-            empty={<EmptyState title="Nothing new">This scan added no findings.</EmptyState>}
+            empty={<EmptyState title={t("scanPage.nothingNew")}>{t("scanPage.thisScanAddedNoFindings")}</EmptyState>}
           />
         </Panel>
         {open && scan && (
@@ -597,6 +602,7 @@ function ScanPage({ call, id, reload }: { call: Call; id: string; reload: () => 
 }
 
 function PackagesPage({ call }: { call: Call }) {
+  const t = useT();
   const [q, setQ] = useState("");
   const [ecosystem, setEcosystem] = useState("");
   const [rows, setRows] = useState<PackageUse[]>();
@@ -614,39 +620,39 @@ function PackagesPage({ call }: { call: Call }) {
   useEffect(() => void query().then((r) => (setRows(r.packages), setMore(r.nextCursor)), () => setRows([])), [query]);
   const loadMore = () => more && query(more).then((r) => (setRows((x) => [...(x ?? []), ...r.packages]), setMore(r.nextCursor)));
   const columns: Column<PackageUse>[] = [
-    { id: "name", header: "Package", sortValue: (p) => p.name, cell: (p) => <span className="audit-wrap font-mono text-xs font-medium">{p.name}</span> },
-    { id: "version", header: "Version", mono: true, cell: (p) => p.version },
-    { id: "eco", header: "Ecosystem", cell: (p) => <Badge>{p.ecosystem}</Badge> },
+    { id: "name", header: t("packagesPage.package"), sortValue: (p) => p.name, cell: (p) => <span className="audit-wrap font-mono text-xs font-medium">{p.name}</span> },
+    { id: "version", header: t("packagesPage.version"), mono: true, cell: (p) => p.version },
+    { id: "eco", header: t("packagesPage.ecosystem"), cell: (p) => <Badge>{p.ecosystem}</Badge> },
     {
       id: "project",
-      header: "Project",
+      header: t("packagesPage.project"),
       cell: (p) => (
         <a href={`/projects/${p.project.id}`} className="text-xs">
           {p.project.name}
         </a>
       ),
     },
-    { id: "path", header: "Lockfile", cell: (p) => <span className="audit-wrap font-mono text-xs">{p.path}</span> },
+    { id: "path", header: t("packagesPage.lockfile"), cell: (p) => <span className="audit-wrap font-mono text-xs">{p.path}</span> },
   ];
   return (
     <>
       <PageHeader
-        title="Packages"
-        description="Where a package is used, on the default branch of every project. A new advisory in a package shows who is affected."
-        actions={<SearchInput label="Search package" className="w-64" value={q} onChange={(e) => setQ(e.target.value)} />}
+        title={t("packagesPage.packages")}
+        description={t("packagesPage.whereAPackageIsUsed")}
+        actions={<SearchInput label={t("packagesPage.searchPackage")} className="w-64" value={q} onChange={(e) => setQ(e.target.value)} />}
       />
       <FilterBar onClear={() => (setQ(""), setEcosystem(""))}>
         <SelectField
-          label="Ecosystem"
+          label={t("packagesPage.ecosystem")}
           value={ecosystem}
           onChange={(e) => setEcosystem(e.target.value)}
           options={[
-            { value: "", label: "All" },
+            { value: "", label: t("packagesPage.all") },
             { value: "npm", label: "npm" },
             { value: "PyPI", label: "PyPI" },
-            { value: "Go", label: "Go" },
-            { value: "crates.io", label: "Cargo" },
-            { value: "Packagist", label: "Composer" },
+            { value: "Go", label: t("packagesPage.go") },
+            { value: "crates.io", label: t("packagesPage.cargo") },
+            { value: "Packagist", label: t("packagesPage.composer") },
           ]}
         />
       </FilterBar>
@@ -655,12 +661,12 @@ function PackagesPage({ call }: { call: Call }) {
         footer={
           more ? (
             <Button size="sm" onClick={loadMore}>
-              Load more
+              {t("packagesPage.loadMore")}
             </Button>
           ) : undefined
         }
       >
-        <DataTable label="Packages" columns={columns} rows={rows ?? []} loading={!rows} getRowId={(p) => `${p.project.id}/${p.ecosystem}/${p.name}/${p.version}/${p.path}`} minWidth={760} pageSize={50} empty={<EmptyState title="No packages">Nothing matches, or no scan has listed packages yet.</EmptyState>} />
+        <DataTable label={t("packagesPage.packages")} columns={columns} rows={rows ?? []} loading={!rows} getRowId={(p) => `${p.project.id}/${p.ecosystem}/${p.name}/${p.version}/${p.path}`} minWidth={760} pageSize={50} empty={<EmptyState title={t("packagesPage.noPackages")}>{t("packagesPage.nothingMatchesOrNoScan")}</EmptyState>} />
       </Panel>
     </>
   );
@@ -669,23 +675,24 @@ function PackagesPage({ call }: { call: Call }) {
 // ---------------------------------------------------------------- Setup
 
 function SetupPage() {
+  const t = useT();
   const origin = window.location.origin;
   return (
     <>
-      <PageHeader title="Setup" description="Scan your lockfiles in CI with osv-scanner, Trivy or Grype and send the result here. The answer says whether the check passes." />
-      <Panel title="Send a scan" description="Use AUDIT_INGEST_TOKEN, set where audit runs, or an API token with the editor role from API tokens.">
+      <PageHeader title={t("setupPage.setup")} description={t("setupPage.scanYourLockfilesInCi")} />
+      <Panel title={t("setupPage.sendAScan")} description={t("setupPage.useAuditIngestTokenSet")}>
         <Code>{`osv-scanner --format json --lockfile package-lock.json > osv.json
 curl -sf -X POST -H "Authorization: Bearer $AUDIT_INGEST_TOKEN" -H 'content-type: application/json' \\
   --data-binary @osv.json \\
   "${origin}/api/v1/scans?project=acme/web&branch=$BRANCH&commit=$SHA&pullRequest=$PR" > scan.json
 jq -e '.passed' scan.json   # fail the pipeline`}</Code>
       </Panel>
-      <Panel title="How a scan is compared" description="Scans of the default branch are the baseline. Any other branch, or any scan with pullRequest, reports only the advisories the baseline does not have and nobody has decided about.">
+      <Panel title={t("setupPage.howAScanIsCompared")} description={t("setupPage.scansOfTheDefaultBranch")}>
         <ul className="audit-list flex flex-col gap-1 text-sm text-fg-muted">
-          <li>An advisory is found again by ecosystem, package, version and advisory id, so a pull request that updates a package clears its old advisories, and one that adds a vulnerable version fails.</li>
-          <li>Severity is the CVSS v3 score when the report has one, then the database's label, then medium.</li>
-          <li>Not affected, false positive and accepted risk (with an end date) follow the advisory to every branch.</li>
-          <li>Packages shows where each package is used, from the default branch of every project. osv-scanner lists the packages that have advisories unless asked for all of them.</li>
+          <li>{t("setupPage.anAdvisoryIsFoundAgain")}</li>
+          <li>{t("setupPage.severityIsTheCvssV3")}</li>
+          <li>{t("setupPage.notAffectedFalsePositiveAnd")}</li>
+          <li>{t("setupPage.packagesShowsWhereEachPackage")}</li>
         </ul>
       </Panel>
     </>
@@ -694,9 +701,10 @@ jq -e '.passed' scan.json   # fail the pipeline`}</Code>
 
 /** The first screen, until the first scan arrives. The summary is polled, so it gives way by itself. */
 function WelcomePage() {
+  const t = useT();
   return (
     <>
-      <PageHeader title="Get started" description="Findings show here as soon as the first scan of a default branch arrives." actions={<StatusBadge tone="info">Waiting for the first scan</StatusBadge>} />
+      <PageHeader title={t("welcomePage.getStarted")} description={t("welcomePage.findingsShowHereAsSoon")} actions={<StatusBadge tone="info">{t("welcomePage.waitingForTheFirstScan")}</StatusBadge>} />
       <SetupPage />
     </>
   );
@@ -706,8 +714,9 @@ function WelcomePage() {
 
 /** Account, Members, Sign-in and API tokens: the screens come from @openasy/auth. */
 function SettingsPage({ page }: { page: "account" | "members" | "signin" | "tokens" }) {
+  const t = useT();
   const { signOut, can } = useAuth();
-  if (page !== "account" && !can("admin")) return <EmptyState title="Admins only">Ask an admin of this audit for access.</EmptyState>;
+  if (page !== "account" && !can("admin")) return <EmptyState title={t("settingsPage.adminsOnly")}>{t("settingsPage.askAnAdminOfThis")}</EmptyState>;
   const titles = {
     account: ["Account", "Your profile, password, two-step verification and where you are signed in."],
     members: ["Members", "Who can sign in to this audit, and with which role. Viewers see everything; editors also triage findings; admins also change policies, delete projects, and manage members and tokens."],
@@ -722,7 +731,7 @@ function SettingsPage({ page }: { page: "account" | "members" | "signin" | "toke
         actions={
           page === "account" && (
             <Button icon={<LogOut />} onClick={() => void signOut()}>
-              Sign out
+              {t("settingsPage.signOut")}
             </Button>
           )
         }
@@ -733,6 +742,7 @@ function SettingsPage({ page }: { page: "account" | "members" | "signin" | "toke
 }
 
 function Product() {
+  const msg = useT();
   const [theme, setTheme] = useThemePreference();
   const { me, can } = useAuth();
   const route = parseRoute(usePath());
@@ -756,20 +766,20 @@ function Product() {
   }, [reload]);
 
   const nav = [
-    { id: "findings", label: "Findings", icon: Bug },
-    { id: "projects", label: "Projects", icon: FolderGit2, count: summary?.projects },
-    { id: "packages", label: "Packages", icon: Package },
+    { id: "findings", label: msg("product.findings"), icon: Bug },
+    { id: "projects", label: msg("product.projects"), icon: FolderGit2, count: summary?.projects },
+    { id: "packages", label: msg("product.packages"), icon: Package },
   ];
   const footerNav = [
-    { id: "setup", label: "Setup", icon: Settings2 },
+    { id: "setup", label: msg("product.setup"), icon: Settings2 },
     ...(can("admin")
       ? [
-          { id: "members", label: "Members", icon: Users },
-          { id: "signin", label: "Sign-in", icon: LogIn },
-          { id: "tokens", label: "API tokens", icon: KeyRound },
+          { id: "members", label: msg("product.members"), icon: Users },
+          { id: "signin", label: msg("product.signIn"), icon: LogIn },
+          { id: "tokens", label: msg("product.apiTokens"), icon: KeyRound },
         ]
       : []),
-    { id: "account", label: "Account", icon: UserRound },
+    { id: "account", label: msg("product.account"), icon: UserRound },
   ];
   const active = route.page === "project" || route.page === "scan" ? "projects" : route.page;
   const roleName = me.user.role.charAt(0).toUpperCase() + me.user.role.slice(1);
