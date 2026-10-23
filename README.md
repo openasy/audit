@@ -79,7 +79,7 @@ The body may be gzipped (`Content-Encoding: gzip`), up to 64 MiB unpacked and 50
 | `AUDIT_RETENTION_DAYS` | `365` | Scans, and fixed advisories nobody decided about, older than this are deleted |
 | `AUDIT_METRICS_PORT` | | Serve `/metrics` on this port only (ADR 0026) |
 | `AUDIT_HEADLESS` | `false` | `true` serves only the API |
-| `AUDIT_PASSWORD_SIGN_IN`, `AUDIT_OIDC_*` | | Sign-in, as in every OpenAsy product ([@openasy/auth](https://github.com/openasy/auth)) |
+| `AUDIT_PASSWORD_SIGN_IN`, `OPENASY_OIDC_*` | | Sign-in, as in every OpenAsy product ([@openasy/auth](https://github.com/openasy/auth)) |
 
 The container runs as non-root with a read-only root filesystem, no capabilities and `no-new-privileges`.
 

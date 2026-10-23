@@ -23,9 +23,9 @@ services:
       # For CI: it can send scans and nothing else. Or use an API token with the editor role from Settings.
       AUDIT_INGEST_TOKEN: ${AUDIT_INGEST_TOKEN:-}
       # Sign in with your identity provider (OIDC), see the README:
-      # AUDIT_OIDC_ISSUER: https://login.example.com
-      # AUDIT_OIDC_CLIENT_ID: audit
-      # AUDIT_OIDC_CLIENT_SECRET: ${AUDIT_OIDC_CLIENT_SECRET}
+      # OPENASY_OIDC_ISSUER: https://login.example.com
+      # OPENASY_OIDC_CLIENT_ID: audit
+      # OPENASY_OIDC_CLIENT_SECRET: ${OPENASY_OIDC_CLIENT_SECRET}
 
 volumes:
   audit-data:
