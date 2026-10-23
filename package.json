@@ -1,6 +1,6 @@
 {
   "name": "@openasy/audit",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "OpenAsy Audit: known vulnerabilities in the dependencies of every project, where only what a change adds can fail it.",
   "license": "AGPL-3.0-only",
@@ -39,7 +39,7 @@
     "npm": ">=11"
   },
   "dependencies": {
-    "@openasy/auth": "https://github.com/openasy/auth/releases/download/v0.7.0/openasy-auth-0.7.0.tgz"
+    "@openasy/auth": "https://github.com/openasy/auth/releases/download/v0.8.0/openasy-auth-0.8.0.tgz"
   },
   "repository": {
     "type": "git",
