@@ -25,7 +25,13 @@ describe("scans", () => {
   it("adopts the default branch even when it holds critical advisories", async () => {
     const scan = await json(await baseline(lodash, minimist, requests, clean));
     expect(scan).toMatchObject({ kind: "baseline", total: 3, new: 3, blocking: 0, passed: true, failOn: "high", project: { name: "acme/web" } });
-    expect(await project()).toMatchObject({ name: "acme/web", defaultBranch: "main", open: { critical: 1, high: 1, medium: 1, low: 0 }, packages: 4, suppressed: 0 });
+    expect(await project()).toMatchObject({
+      name: "acme/web",
+      defaultBranch: "main",
+      open: { critical: 1, high: 1, medium: 1, low: 0 },
+      packages: 4,
+      suppressed: 0,
+    });
   });
 
   it("fails a pull request only for advisories it adds, at or above failOn", async () => {
@@ -50,13 +56,21 @@ describe("scans", () => {
   it("does not let a pull request change the baseline", async () => {
     const list = await json(await app.admin("/api/v1/findings"));
     expect(list.findings.map((f: { advisory: string }) => f.advisory).sort()).toEqual(["GHSA-lodash", "GHSA-minimist", "GHSA-requests"]);
-    expect(list.findings[0]).toMatchObject({ advisory: "GHSA-lodash", aliases: ["CVE-2021-23337"], fixedVersion: "4.17.21", path: "package-lock.json", severity: "critical" });
+    expect(list.findings[0]).toMatchObject({
+      advisory: "GHSA-lodash",
+      aliases: ["CVE-2021-23337"],
+      fixedVersion: "4.17.21",
+      path: "package-lock.json",
+      severity: "critical",
+    });
   });
 
   it("marks advisories fixed when the default branch stops reporting them, and opens them again if they return", async () => {
     await baseline({ name: "lodash", version: "4.17.21" }, minimist, requests);
     const p = await project();
-    expect((await json(await app.admin(`/api/v1/projects/${p.id}/findings?status=resolved`))).findings.map((f: { advisory: string }) => f.advisory)).toEqual(["GHSA-lodash"]);
+    expect((await json(await app.admin(`/api/v1/projects/${p.id}/findings?status=resolved`))).findings.map((f: { advisory: string }) => f.advisory)).toEqual([
+      "GHSA-lodash",
+    ]);
     expect(await json(await pull("10", lodash, minimist, requests))).toMatchObject({ new: 1 });
     await baseline(lodash, minimist, requests);
     expect((await json(await app.admin(`/api/v1/projects/${p.id}/findings?status=resolved`))).findings).toEqual([]);
@@ -99,7 +113,10 @@ describe("decisions", () => {
     expect((await decide("GHSA-requests", { state: "false-positive", reason: "x ok", extra: 1 })).status).toBe(422);
     const done = await json(await decide("GHSA-requests", { state: "accepted", reason: "Internal use only until the rewrite", expiresAt: inDays(30) }));
     expect(done).toMatchObject({ triage: { state: "accepted", expiresAt: expect.any(String), active: true } });
-    expect((await json(await app.admin("/api/v1/findings?status=suppressed"))).findings.map((f: { advisory: string }) => f.advisory).sort()).toEqual(["GHSA-lodash", "GHSA-requests"]);
+    expect((await json(await app.admin("/api/v1/findings?status=suppressed"))).findings.map((f: { advisory: string }) => f.advisory).sort()).toEqual([
+      "GHSA-lodash",
+      "GHSA-requests",
+    ]);
     // The acceptance runs out.
     app.db.prepare("UPDATE findings SET expires_at = ? WHERE triage = 'accepted'").run(new Date(Date.now() - 1000).toISOString());
     expect((await project()).open.high).toBe(1);
@@ -110,7 +127,8 @@ describe("decisions", () => {
     const first = await json(await pull("12", lodash, minimist, requests, axios));
     expect(first).toMatchObject({ new: 1, passed: false });
     const p = await project();
-    const put = (body: unknown) => app.admin(`/api/v1/projects/${p.id}/findings/${first.findings[0].fingerprint}`, { method: "PUT", body: JSON.stringify(body) });
+    const put = (body: unknown) =>
+      app.admin(`/api/v1/projects/${p.id}/findings/${first.findings[0].fingerprint}`, { method: "PUT", body: JSON.stringify(body) });
     expect((await app.admin(`/api/v1/projects/${p.id}/findings/nope`, { method: "PUT", body: JSON.stringify({ state: "open" }) })).status).toBe(404);
     expect((await put({ state: "false-positive", reason: "The scanner read a test fixture" })).status).toBe(200);
     expect(await json(await pull("12", lodash, minimist, requests, axios))).toMatchObject({ new: 0, suppressed: 1, passed: true });
@@ -131,7 +149,9 @@ describe("projects, filters and access", () => {
     expect((await json(await app.admin("/api/v1/findings?severity=critical"))).findings).toEqual([]);
     expect((await json(await app.admin("/api/v1/findings?ecosystem=PyPI"))).findings.map((f: { advisory: string }) => f.advisory)).toEqual(["GHSA-requests"]);
     expect((await json(await app.admin("/api/v1/findings?q=CVE-2021"))).findings).toEqual([]);
-    expect((await json(await app.admin("/api/v1/findings?status=suppressed&q=CVE-2021"))).findings.map((f: { advisory: string }) => f.advisory)).toEqual(["GHSA-lodash"]);
+    expect((await json(await app.admin("/api/v1/findings?status=suppressed&q=CVE-2021"))).findings.map((f: { advisory: string }) => f.advisory)).toEqual([
+      "GHSA-lodash",
+    ]);
     expect((await app.admin("/api/v1/findings?severity=urgent")).status).toBe(422);
     expect((await app.admin("/api/v1/findings?status=gone")).status).toBe(422);
     expect((await app.admin("/api/v1/findings?limit=0")).status).toBe(422);
@@ -159,8 +179,24 @@ describe("projects, filters and access", () => {
   });
 
   it("takes a SARIF log, gzip, and refuses what it cannot compare", async () => {
-    const send = (query: Record<string, string>, body: string | Buffer, headers: Record<string, string> = {}) => app.ingest(`/api/v1/scans?${new URLSearchParams(query)}`, { method: "POST", body, headers });
-    const sarif = JSON.stringify({ version: "2.1.0", runs: [{ tool: { driver: { name: "Trivy" } }, results: [{ ruleId: "CVE-2024-1", level: "error", message: { text: "Package: minimist\nInstalled Version: 1.2.5\nFixed Version: 1.2.6" }, locations: [{ physicalLocation: { artifactLocation: { uri: "yarn.lock" } } }] }] }] });
+    const send = (query: Record<string, string>, body: string | Buffer, headers: Record<string, string> = {}) =>
+      app.ingest(`/api/v1/scans?${new URLSearchParams(query)}`, { method: "POST", body, headers });
+    const sarif = JSON.stringify({
+      version: "2.1.0",
+      runs: [
+        {
+          tool: { driver: { name: "Trivy" } },
+          results: [
+            {
+              ruleId: "CVE-2024-1",
+              level: "error",
+              message: { text: "Package: minimist\nInstalled Version: 1.2.5\nFixed Version: 1.2.6" },
+              locations: [{ physicalLocation: { artifactLocation: { uri: "yarn.lock" } } }],
+            },
+          ],
+        },
+      ],
+    });
     expect(await json(await send({ project: "acme/api", branch: "main" }, sarif))).toMatchObject({ kind: "baseline", tool: "Trivy", total: 1 });
     expect((await send({ project: "acme/api", branch: "main" }, gzipSync(osv("go.sum", lodash)), { "content-encoding": "gzip" })).status).toBe(201);
     const problem = async (res: Response, status: number, code: string) => (expect(res.status).toBe(status), expect(await json(res)).toMatchObject({ code }));
@@ -177,7 +213,9 @@ describe("projects, filters and access", () => {
 
   it("asks for a token, and answers version, health and metrics", async () => {
     expect((await fetch(`${app.base}/api/v1/scans?project=a&branch=main`, { method: "POST", body: osv("a") })).status).toBe(401);
-    expect((await fetch(`${app.base}/api/v1/scans?project=a&branch=main`, { method: "POST", body: osv("a"), headers: { authorization: "Bearer nope" } })).status).toBe(401);
+    expect(
+      (await fetch(`${app.base}/api/v1/scans?project=a&branch=main`, { method: "POST", body: osv("a"), headers: { authorization: "Bearer nope" } })).status,
+    ).toBe(401);
     expect((await app.ingest("/api/v1/findings")).status).toBe(401);
     expect((await app.ingest("/api/v1/packages")).status).toBe(401);
     const closed = await startApp({ version: "0.1.0", ingestToken: undefined, adminToken: undefined });

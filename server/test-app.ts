@@ -41,7 +41,11 @@ export function osv(path: string, ...packages: TestPackage[]) {
             summary: v.summary ?? `${v.id} in ${p.name}`,
             ...(v.cvss && { severity: [{ type: "CVSS_V3", score: v.cvss }] }),
             ...(v.label && { database_specific: { severity: v.label } }),
-            ...(v.fixed && { affected: [{ package: { name: p.name, ecosystem: p.ecosystem ?? "npm" }, ranges: [{ type: "SEMVER", events: [{ introduced: "0" }, { fixed: v.fixed }] }] }] }),
+            ...(v.fixed && {
+              affected: [
+                { package: { name: p.name, ecosystem: p.ecosystem ?? "npm" }, ranges: [{ type: "SEMVER", events: [{ introduced: "0" }, { fixed: v.fixed }] }] },
+              ],
+            }),
           })),
         })),
       },
@@ -59,7 +63,10 @@ export async function startApp(opts: Partial<AppOptions> & { version: string }) 
   const base = `http://localhost:${(server.address() as AddressInfo).port}`;
   const auth = createAuth({ db, product: "audit", productName: "OpenAsy Audit", origin: base });
   handler = createApp({ db, audit, auth, ingestToken: INGEST_TOKEN, adminToken: ADMIN_TOKEN, ...opts });
-  const as = (token: string) => (path: string, init: RequestInit = {}) => fetch(base + path, { ...init, headers: { authorization: `Bearer ${token}`, "content-type": "application/json", ...init.headers } });
+  const as =
+    (token: string) =>
+    (path: string, init: RequestInit = {}) =>
+      fetch(base + path, { ...init, headers: { authorization: `Bearer ${token}`, "content-type": "application/json", ...init.headers } });
   const admin = as(ADMIN_TOKEN);
   const ingest = as(INGEST_TOKEN);
   /** Sends a scan the way CI does. */

@@ -34,7 +34,12 @@ export interface AppOptions {
 }
 
 function metricsText(audit: Audit, version: string) {
-  return renderMetrics(version, { projects: audit.projectCount(), findings: audit.severityTotals(), suppressed: audit.suppressedCount(), failingChecks: audit.summary().failingChecks });
+  return renderMetrics(version, {
+    projects: audit.projectCount(),
+    findings: audit.severityTotals(),
+    suppressed: audit.suppressedCount(),
+    failingChecks: audit.summary().failingChecks,
+  });
 }
 
 /** Serves only /metrics, for a port that is not exposed with the rest (AUDIT_METRICS_PORT). */
@@ -71,7 +76,8 @@ function send(res: ServerResponse, status: number, body: string | Buffer, type =
   res.end(body);
 }
 
-const json = (res: ServerResponse, status: number, data: unknown, headers?: Record<string, string>) => send(res, status, JSON.stringify(data), "application/json", headers);
+const json = (res: ServerResponse, status: number, data: unknown, headers?: Record<string, string>) =>
+  send(res, status, JSON.stringify(data), "application/json", headers);
 
 const TITLES: Record<ProblemCode, string> = {
   "invalid-token": "Invalid token",
@@ -124,7 +130,8 @@ async function readBody(req: IncomingMessage, limit: number): Promise<Buffer> {
 
 async function readJson(req: IncomingMessage, limit = 64 * 1024): Promise<Record<string, unknown>> {
   const raw = await readBody(req, limit).catch((err: unknown) => {
-    if (err instanceof AuditError && err.code === "payload-too-large") throw new AuditError(400, "invalid-json", `The body must be JSON, at most ${Math.round(limit / 1024)} KiB.`);
+    if (err instanceof AuditError && err.code === "payload-too-large")
+      throw new AuditError(400, "invalid-json", `The body must be JSON, at most ${Math.round(limit / 1024)} KiB.`);
     throw err;
   });
   try {
@@ -164,9 +171,11 @@ interface Route {
 
 function findingFilter(url: URL, projectId?: string): FindingFilter {
   const status = url.searchParams.get("status") ?? "open";
-  if (status !== "open" && status !== "suppressed" && status !== "resolved") throw new AuditError(422, "invalid-body", "status must be open, suppressed or resolved.");
+  if (status !== "open" && status !== "suppressed" && status !== "resolved")
+    throw new AuditError(422, "invalid-body", "status must be open, suppressed or resolved.");
   const severity = url.searchParams.get("severity")?.split(",").filter(Boolean) as Severity[] | undefined;
-  if (severity?.some((s) => !SEVERITIES.includes(s))) throw new AuditError(422, "invalid-body", `severity is a comma-separated list of ${SEVERITIES.join(", ")}.`);
+  if (severity?.some((s) => !SEVERITIES.includes(s)))
+    throw new AuditError(422, "invalid-body", `severity is a comma-separated list of ${SEVERITIES.join(", ")}.`);
   const q = url.searchParams.get("q")?.trim();
   if (q && q.length > 128) throw new AuditError(422, "invalid-body", "q must be at most 128 characters.");
   const ecosystem = url.searchParams.get("ecosystem") || undefined;
@@ -182,7 +191,8 @@ export function createApp({ db, audit, version, auth, adminToken, ingestToken, w
   };
   const cursor = (url: URL) => url.searchParams.get("cursor") ?? undefined;
   const limit = (url: URL) => parseLimit(url.searchParams.get("limit"));
-  const page = <K extends string, T>(key: K, p: { items: T[]; nextCursor?: string }) => ({ [key]: p.items, ...(p.nextCursor && { nextCursor: p.nextCursor }) }) as Record<K, T[]> & { nextCursor?: string };
+  const page = <K extends string, T>(key: K, p: { items: T[]; nextCursor?: string }) =>
+    ({ [key]: p.items, ...(p.nextCursor && { nextCursor: p.nextCursor }) }) as Record<K, T[]> & { nextCursor?: string };
 
   const routes: Route[] = [
     { method: "GET", path: "/api/v1/version", auth: "none", handle: () => ({ product: "audit", version }) },
@@ -210,8 +220,18 @@ export function createApp({ db, audit, version, auth, adminToken, ingestToken, w
     { method: "GET", path: "/api/v1/projects/:id", auth: "viewer", handle: ({ params }) => audit.project(params[0]!) },
     { method: "PATCH", path: "/api/v1/projects/:id", auth: "admin", handle: async ({ params, body }) => audit.updateProject(params[0]!, await body()) },
     { method: "DELETE", path: "/api/v1/projects/:id", auth: "admin", handle: ({ res, params }) => (audit.deleteProject(params[0]!), noContent(res)) },
-    { method: "GET", path: "/api/v1/projects/:id/scans", auth: "viewer", handle: ({ url, params }) => page("scans", audit.scans(params[0]!, cursor(url), limit(url))) },
-    { method: "GET", path: "/api/v1/projects/:id/findings", auth: "viewer", handle: ({ url, params }) => page("findings", audit.findings(findingFilter(url, params[0]!), cursor(url), limit(url))) },
+    {
+      method: "GET",
+      path: "/api/v1/projects/:id/scans",
+      auth: "viewer",
+      handle: ({ url, params }) => page("scans", audit.scans(params[0]!, cursor(url), limit(url))),
+    },
+    {
+      method: "GET",
+      path: "/api/v1/projects/:id/findings",
+      auth: "viewer",
+      handle: ({ url, params }) => page("findings", audit.findings(findingFilter(url, params[0]!), cursor(url), limit(url))),
+    },
 
     // Where a package is used, on the default branch of every project.
     {
@@ -221,12 +241,24 @@ export function createApp({ db, audit, version, auth, adminToken, ingestToken, w
       handle: ({ url }) => {
         const q = url.searchParams.get("q")?.trim();
         if (q && q.length > 128) throw new AuditError(422, "invalid-body", "q must be at most 128 characters.");
-        return page("packages", audit.packages({ q: q || undefined, ecosystem: url.searchParams.get("ecosystem") || undefined, projectId: url.searchParams.get("project") || undefined }, cursor(url), limit(url)));
+        return page(
+          "packages",
+          audit.packages(
+            { q: q || undefined, ecosystem: url.searchParams.get("ecosystem") || undefined, projectId: url.searchParams.get("project") || undefined },
+            cursor(url),
+            limit(url),
+          ),
+        );
       },
     },
 
     // Findings of every project.
-    { method: "GET", path: "/api/v1/findings", auth: "viewer", handle: ({ url }) => page("findings", audit.findings(findingFilter(url), cursor(url), limit(url))) },
+    {
+      method: "GET",
+      path: "/api/v1/findings",
+      auth: "viewer",
+      handle: ({ url }) => page("findings", audit.findings(findingFilter(url), cursor(url), limit(url))),
+    },
     {
       // Triage follows the finding's fingerprint to every branch (ADR 0044).
       method: "PUT",
@@ -245,8 +277,10 @@ export function createApp({ db, audit, version, auth, adminToken, ingestToken, w
     if (tokenMatches(req.headers.authorization, adminToken)) return "admin token";
     if (access === "ingest") {
       // An API token or a session with the editor role can send scans too, for CI set up from Settings.
-      if (!ingestToken && !req.headers.authorization?.startsWith("Bearer oa_")) throw new AuditError(503, "not-configured", "Set AUDIT_INGEST_TOKEN on audit, or send an API token with the editor role.");
-      if (!req.headers.authorization?.startsWith("Bearer oa_")) throw new AuditError(401, "invalid-token", "Send AUDIT_INGEST_TOKEN or an API token as a bearer token.");
+      if (!ingestToken && !req.headers.authorization?.startsWith("Bearer oa_"))
+        throw new AuditError(503, "not-configured", "Set AUDIT_INGEST_TOKEN on audit, or send an API token with the editor role.");
+      if (!req.headers.authorization?.startsWith("Bearer oa_"))
+        throw new AuditError(401, "invalid-token", "Send AUDIT_INGEST_TOKEN or an API token as a bearer token.");
     }
     const p = auth.authorize(req, access === "ingest" ? "editor" : access);
     return p.kind === "session" ? p.user.name : `API token ${p.name}`;

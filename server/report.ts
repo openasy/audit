@@ -111,7 +111,11 @@ export function normalizePath(uri: string): string {
   } catch {
     // keep it as sent
   }
-  return path.replace(/^file:\/\/\/?/, "").replace(/^(\.\/)+/, "").replace(/\\/g, "/").slice(0, 1024);
+  return path
+    .replace(/^file:\/\/\/?/, "")
+    .replace(/^(\.\/)+/, "")
+    .replace(/\\/g, "/")
+    .slice(0, 1024);
 }
 
 // ---------------------------------------------------------------------------------------------- readers
@@ -192,7 +196,10 @@ function readSarif(body: Obj): { tool: string; found: Found[]; packages: Invento
       if (!advisory || !name) continue;
       if (found.length >= MAX_FINDINGS) throw new ReportError(`A report may hold at most ${MAX_FINDINGS} advisories.`);
       const rule = rules.get(advisory);
-      const location = Array.isArray(result.locations) && isObj(result.locations[0]) && isObj(result.locations[0].physicalLocation) ? result.locations[0].physicalLocation : {};
+      const location =
+        Array.isArray(result.locations) && isObj(result.locations[0]) && isObj(result.locations[0].physicalLocation)
+          ? result.locations[0].physicalLocation
+          : {};
       const path = normalizePath(text(isObj(location.artifactLocation) ? location.artifactLocation.uri : undefined, 2048) ?? "unknown");
       const rated = fromScore(Number(props["security-severity"] ?? (isObj(rule?.properties) ? rule!.properties["security-severity"] : NaN)));
       found.push({

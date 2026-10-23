@@ -12,11 +12,11 @@ services:
     security_opt: ["no-new-privileges:true"]
     tmpfs: [/tmp]
     ports:
-      - "127.0.0.1:8080:8080"   # UI and API; put a TLS proxy in front to reach it from elsewhere
+      - "127.0.0.1:8080:8080" # UI and API; put a TLS proxy in front to reach it from elsewhere
     volumes:
-      - audit-data:/data   # SQLite database: projects, scans, advisories, the package inventory and decisions
+      - audit-data:/data # SQLite database: projects, scans, advisories, the package inventory and decisions
     secrets:
-      - openasy-kek   # mounted at /run/secrets/openasy-kek
+      - openasy-kek # mounted at /run/secrets/openasy-kek
     environment:
       # The address people open Audit at; with a TLS proxy in front, its https:// URL.
       AUDIT_PUBLIC_URL: ${AUDIT_PUBLIC_URL:-http://localhost:8080}

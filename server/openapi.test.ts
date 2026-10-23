@@ -45,7 +45,9 @@ async function call(method: string, path: string, init: RequestInit = {}, concre
   // A response is either inline or a $ref to components/responses; build the JSON pointer to its schema either way.
   const shared = declared!.$ref?.split("/").pop();
   const response = shared ? spec.components.responses[shared]! : declared!;
-  const at = shared ? `openapi#/components/responses/${shared}` : `openapi#/paths/${path.replaceAll("/", "~1")}/${method.toLowerCase()}/responses/${res.status}`;
+  const at = shared
+    ? `openapi#/components/responses/${shared}`
+    : `openapi#/paths/${path.replaceAll("/", "~1")}/${method.toLowerCase()}/responses/${res.status}`;
 
   if (!response.content) {
     expect(res.headers.get("content-length") ?? "0", `${method} ${path} ${res.status} should have no body`).toBe("0");
@@ -61,7 +63,10 @@ async function call(method: string, path: string, init: RequestInit = {}, concre
   return { res, body };
 }
 
-const auth = (token: string, body?: string, type = "application/json") => ({ headers: { authorization: `Bearer ${token}`, "content-type": type }, ...(body !== undefined && { body }) });
+const auth = (token: string, body?: string, type = "application/json") => ({
+  headers: { authorization: `Bearer ${token}`, "content-type": type },
+  ...(body !== undefined && { body }),
+});
 const admin = (body?: unknown) => auth(ADMIN_TOKEN, body === undefined ? undefined : typeof body === "string" ? body : JSON.stringify(body));
 const inDays = (d: number) => new Date(Date.now() + d * 86_400_000).toISOString();
 
@@ -108,7 +113,8 @@ describe("responses match openapi.json", () => {
   it("scans: baseline, change, and every refusal", async () => {
     const baseline = (await call("POST", "/api/v1/scans", send(), path("project=acme/web&branch=main&commit=abc123"))).body as { project: { id: string } };
     project = baseline.project.id;
-    const change = (await call("POST", "/api/v1/scans", send(osv("package-lock.json", lodash, axios)), path("project=acme/web&branch=fix&pullRequest=3"))).body as { id: string; findings: Array<{ fingerprint: string }> };
+    const change = (await call("POST", "/api/v1/scans", send(osv("package-lock.json", lodash, axios)), path("project=acme/web&branch=fix&pullRequest=3")))
+      .body as { id: string; findings: Array<{ fingerprint: string }> };
     scanId = change.id;
     fingerprint = change.findings[0]!.fingerprint;
     await call("POST", "/api/v1/scans", send("{nope"), path("project=acme/web&branch=main"));
@@ -155,7 +161,8 @@ describe("responses match openapi.json", () => {
     await call("GET", "/api/v1/packages", admin(), "/api/v1/packages?project=missing");
     await call("GET", "/api/v1/packages", {});
 
-    const put = (fp: string, state: unknown) => call("PUT", "/api/v1/projects/{id}/findings/{fingerprint}", admin(state), `/api/v1/projects/${project}/findings/${fp}`);
+    const put = (fp: string, state: unknown) =>
+      call("PUT", "/api/v1/projects/{id}/findings/{fingerprint}", admin(state), `/api/v1/projects/${project}/findings/${fp}`);
     await put(fingerprint, { state: "false-positive", reason: "A test fixture" });
     await put(fingerprint, { state: "not-affected", reason: "The code is not called" });
     await put(fingerprint, { state: "accepted", reason: "Behind the VPN", expiresAt: inDays(30) });

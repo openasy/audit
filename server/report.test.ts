@@ -3,7 +3,19 @@ import { cvss3Base, ecosystemOf, fromScore, normalizePath, parseReport, ReportEr
 import { osv, type TestPackage } from "./test-app.ts";
 
 const parse = (...p: TestPackage[]) => parseReport(JSON.parse(osv("package-lock.json", ...p)));
-const lodash: TestPackage = { name: "lodash", version: "4.17.20", vulns: [{ id: "GHSA-35jh-r3h4-6jhm", aliases: ["CVE-2021-23337"], summary: "Command injection", cvss: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H", fixed: "4.17.21" }] };
+const lodash: TestPackage = {
+  name: "lodash",
+  version: "4.17.20",
+  vulns: [
+    {
+      id: "GHSA-35jh-r3h4-6jhm",
+      aliases: ["CVE-2021-23337"],
+      summary: "Command injection",
+      cvss: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H",
+      fixed: "4.17.21",
+    },
+  ],
+};
 
 describe("cvss3Base", () => {
   it("computes the base score of v3 vectors", () => {
@@ -30,7 +42,18 @@ describe("parseReport (osv-scanner)", () => {
     const { tool, findings, packages } = parse(lodash, { name: "left-pad", version: "1.3.0" });
     expect(tool).toBe("osv-scanner");
     expect(findings).toEqual([
-      { fingerprint: expect.stringMatching(/^[0-9a-f]{32}$/), ecosystem: "npm", package: "lodash", version: "4.17.20", advisory: "GHSA-35jh-r3h4-6jhm", aliases: ["CVE-2021-23337"], severity: "high", summary: "Command injection", fixedVersion: "4.17.21", path: "package-lock.json" },
+      {
+        fingerprint: expect.stringMatching(/^[0-9a-f]{32}$/),
+        ecosystem: "npm",
+        package: "lodash",
+        version: "4.17.20",
+        advisory: "GHSA-35jh-r3h4-6jhm",
+        aliases: ["CVE-2021-23337"],
+        severity: "high",
+        summary: "Command injection",
+        fixedVersion: "4.17.21",
+        path: "package-lock.json",
+      },
     ]);
     // Every package the report lists is in the inventory, with or without advisories.
     expect(packages.map((p) => `${p.name}@${p.version}`).sort()).toEqual(["left-pad@1.3.0", "lodash@4.17.20"]);
@@ -80,17 +103,35 @@ describe("parseReport (SARIF)", () => {
   it("reads Trivy's results: the rule is the advisory and the message names the package", () => {
     const { tool, findings } = parseReport(
       sarif(
-        { ruleId: "CVE-2024-0001", level: "error", message: { text: "Package: minimist\nInstalled Version: 1.2.5\nVulnerability CVE-2024-0001\nFixed Version: 1.2.6" }, locations: [{ physicalLocation: { artifactLocation: { uri: "yarn.lock" } } }] },
+        {
+          ruleId: "CVE-2024-0001",
+          level: "error",
+          message: { text: "Package: minimist\nInstalled Version: 1.2.5\nVulnerability CVE-2024-0001\nFixed Version: 1.2.6" },
+          locations: [{ physicalLocation: { artifactLocation: { uri: "yarn.lock" } } }],
+        },
         [{ id: "CVE-2024-0001", shortDescription: { text: "Prototype pollution" }, properties: { "security-severity": "9.8" } }],
       ),
     );
     expect(tool).toBe("Trivy");
-    expect(findings).toMatchObject([{ ecosystem: "npm", package: "minimist", version: "1.2.5", advisory: "CVE-2024-0001", severity: "critical", fixedVersion: "1.2.6", summary: "Prototype pollution", path: "yarn.lock" }]);
+    expect(findings).toMatchObject([
+      {
+        ecosystem: "npm",
+        package: "minimist",
+        version: "1.2.5",
+        advisory: "CVE-2024-0001",
+        severity: "critical",
+        fixedVersion: "1.2.6",
+        summary: "Prototype pollution",
+        path: "yarn.lock",
+      },
+    ]);
   });
 
   it("leaves out results without a package and suppressed ones", () => {
     expect(parseReport(sarif({ ruleId: "CVE-1", message: { text: "no package named" } })).findings).toEqual([]);
-    expect(parseReport(sarif({ ruleId: "CVE-1", suppressions: [{ kind: "external" }], properties: { package: "x" }, message: { text: "m" } })).findings).toEqual([]);
+    expect(
+      parseReport(sarif({ ruleId: "CVE-1", suppressions: [{ kind: "external" }], properties: { package: "x" }, message: { text: "m" } })).findings,
+    ).toEqual([]);
   });
 });
 

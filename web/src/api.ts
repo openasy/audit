@@ -84,7 +84,19 @@ export interface Scan {
 }
 
 export interface ScanDetail extends Scan {
-  findings: Array<{ fingerprint: string; ecosystem: string; package: string; version: string; advisory: string; aliases: string[]; severity: Severity; summary: string; fixedVersion: string | null; path: string; suppressed: boolean }>;
+  findings: Array<{
+    fingerprint: string;
+    ecosystem: string;
+    package: string;
+    version: string;
+    advisory: string;
+    aliases: string[];
+    severity: Severity;
+    summary: string;
+    fixedVersion: string | null;
+    path: string;
+    suppressed: boolean;
+  }>;
 }
 
 export class Unauthorized extends Error {}
@@ -94,7 +106,11 @@ export class ApiError extends Error {}
 
 // The session is an HttpOnly cookie set by sign-in (@openasy/auth); the browser sends it, nothing is stored here.
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(path, { ...init, credentials: "same-origin", headers: { ...(init.body ? { "content-type": "application/json" } : {}), ...init.headers } });
+  const res = await fetch(path, {
+    ...init,
+    credentials: "same-origin",
+    headers: { ...(init.body ? { "content-type": "application/json" } : {}), ...init.headers },
+  });
   if (!res.ok) {
     const problem = (await res.json().catch(() => ({}))) as { code?: string; detail?: string };
     if (res.status === 401) throw new Unauthorized(problem.detail);
