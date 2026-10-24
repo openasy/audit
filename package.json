@@ -1,6 +1,6 @@
 {
   "name": "@openasy/audit",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "description": "OpenAsy Audit: known vulnerabilities in the dependencies of every project, where only what a change adds can fail it.",
   "license": "AGPL-3.0-only",
@@ -18,7 +18,7 @@
   "prettier": "@openasy/code-style/prettier",
   "devDependencies": {
     "@openasy/code-style": "https://github.com/openasy/code-style/releases/download/v0.1.2/openasy-code-style-0.1.2.tgz",
-    "@openasy/ui": "https://github.com/openasy/ui/releases/download/v0.8.0/openasy-ui-0.8.0.tgz",
+    "@openasy/ui": "https://github.com/openasy/ui/releases/download/v0.9.0/openasy-ui-0.9.0.tgz",
     "@types/node": "^26.6.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
@@ -39,7 +39,7 @@
     "npm": ">=11"
   },
   "dependencies": {
-    "@openasy/auth": "https://github.com/openasy/auth/releases/download/v0.9.0/openasy-auth-0.9.0.tgz"
+    "@openasy/auth": "https://github.com/openasy/auth/releases/download/v0.10.0/openasy-auth-0.10.0.tgz"
   },
   "repository": {
     "type": "git",
