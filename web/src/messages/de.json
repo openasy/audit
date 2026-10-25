@@ -54,6 +54,29 @@
     "setup": "Einrichtung",
     "nothingMatchesTheseFilters": "Nichts passt zu diesen Filtern."
   },
+  "overviewPage": {
+    "overview": "Übersicht",
+    "openOverTime": "Offene Befunde im Zeitverlauf",
+    "openOverTimeDetail": "Am Ende jedes der letzten 30 Tage, nach Schweregrad, ohne das, was eine Entscheidung damals zurückgestellt hat.",
+    "bySeverity": "Nach Schweregrad",
+    "bySeverityDetail": "Jetzt offene Befunde.",
+    "open": "offen",
+    "foundAndFixed": "Gefunden und behoben, pro Woche",
+    "foundAndFixedDetail": "Befunde, die in jeder der letzten 12 Wochen erstmals gefunden und behoben wurden.",
+    "found": "Gefunden",
+    "fixed": "Behoben",
+    "checksPassed": "Bestandene Prüfungen",
+    "checksPassedDetail": "Prüfungen der letzten 30 Tage, die nichts Neues ab der Schwelle fanden.",
+    "passedOfAll": "{{passed}} von {{total}} bestanden",
+    "noChecks": "Keine Prüfungen in 30 Tagen",
+    "nothingOpen": "Nichts offen",
+    "top1": "Zu aktualisierende Pakete",
+    "top1Detail": "Schlimmster Schweregrad zuerst; der Balken zeigt die Zahl der Advisories.",
+    "top2": "Projekte mit den meisten offenen",
+    "top2Detail": "Offene Advisories des Standard-Branches jedes Projekts.",
+    "inProjects_one": "in {{count}} Projekt",
+    "inProjects_other": "in {{count}} Projekten"
+  },
   "findingsPage": {
     "findings": "Befunde",
     "lastScan": "{{plural}} · letzter Scan {{ago}}",
@@ -177,6 +200,7 @@
     "signOut": "Abmelden"
   },
   "product": {
+    "overview": "Übersicht",
     "findings": "Befunde",
     "projects": "Projekte",
     "packages": "Pakete",

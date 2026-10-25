@@ -54,6 +54,29 @@
     "setup": "Setup",
     "nothingMatchesTheseFilters": "Nothing matches these filters."
   },
+  "overviewPage": {
+    "overview": "Overview",
+    "openOverTime": "Open findings over time",
+    "openOverTimeDetail": "At the end of each of the last 30 days, by severity, without what a decision set aside then.",
+    "bySeverity": "By severity",
+    "bySeverityDetail": "Open findings now.",
+    "open": "open",
+    "foundAndFixed": "Found and fixed, by week",
+    "foundAndFixedDetail": "Findings first found and fixed in each of the last 12 weeks.",
+    "found": "Found",
+    "fixed": "Fixed",
+    "checksPassed": "Checks that passed",
+    "checksPassedDetail": "Checks of the last 30 days that found nothing new at or above the bar.",
+    "passedOfAll": "{{passed}} of {{total}} passed",
+    "noChecks": "No checks in 30 days",
+    "nothingOpen": "Nothing open",
+    "top1": "Packages to update",
+    "top1Detail": "Worst severity first; the bar is how many advisories each has.",
+    "top2": "Projects with the most open",
+    "top2Detail": "Open advisories on each project's default branch.",
+    "inProjects_one": "in {{count}} project",
+    "inProjects_other": "in {{count}} projects"
+  },
   "findingsPage": {
     "findings": "Findings",
     "lastScan": "{{plural}} · last scan {{ago}}",
@@ -177,6 +200,7 @@
     "signOut": "Sign out"
   },
   "product": {
+    "overview": "Overview",
     "findings": "Findings",
     "projects": "Projects",
     "packages": "Packages",

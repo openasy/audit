@@ -54,6 +54,29 @@
     "setup": "Kurulum",
     "nothingMatchesTheseFilters": "Bu filtrelerle eşleşen bir şey yok."
   },
+  "overviewPage": {
+    "overview": "Genel bakış",
+    "openOverTime": "Zaman içinde açık bulgular",
+    "openOverTimeDetail": "Son 30 günün her birinin sonunda, önem derecesine göre; o gün bir kararla kenara konanlar hariç.",
+    "bySeverity": "Öneme göre",
+    "bySeverityDetail": "Şu an açık bulgular.",
+    "open": "açık",
+    "foundAndFixed": "Haftalık bulunan ve düzeltilen",
+    "foundAndFixedDetail": "Son 12 haftanın her birinde ilk kez bulunan ve düzeltilen bulgular.",
+    "found": "Bulunan",
+    "fixed": "Düzeltilen",
+    "checksPassed": "Geçen kontroller",
+    "checksPassedDetail": "Son 30 günde eşiğin üstünde yeni bir şey bulmayan kontroller.",
+    "passedOfAll": "{{total}} kontrolden {{passed}} geçti",
+    "noChecks": "30 günde kontrol yok",
+    "nothingOpen": "Açık bir şey yok",
+    "top1": "Güncellenecek paketler",
+    "top1Detail": "En kötü önem önce; çubuk her birindeki tavsiye sayısıdır.",
+    "top2": "En çok açığı olan projeler",
+    "top2Detail": "Her projenin varsayılan dalındaki açık tavsiyeler.",
+    "inProjects_one": "{{count}} projede",
+    "inProjects_other": "{{count}} projede"
+  },
   "findingsPage": {
     "findings": "Bulgular",
     "lastScan": "{{plural}} · son tarama {{ago}}",
@@ -177,6 +200,7 @@
     "signOut": "Çıkış yap"
   },
   "product": {
+    "overview": "Genel bakış",
     "findings": "Bulgular",
     "projects": "Projeler",
     "packages": "Paketler",

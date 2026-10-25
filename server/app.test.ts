@@ -228,3 +228,27 @@ describe("projects, filters and access", () => {
     expect(metrics).toContain('openasy_audit_open_findings{severity="high"}');
   });
 });
+
+describe("the overview", () => {
+  let own: Awaited<ReturnType<typeof startApp>>;
+  beforeAll(async () => {
+    own = await startApp({ version: "0.1.0" });
+  });
+  afterAll(() => own.close());
+
+  it("counts open by day, found and fixed by week, and ranks packages and projects", async () => {
+    const scan = (...p: TestPackage[]) => own.scan({ project: "acme/web", branch: "main", commit: "aaaa1111" }, osv("package-lock.json", ...p));
+    await scan(lodash, minimist, requests);
+    await scan({ name: "lodash", version: "4.17.21" }, minimist, requests);
+    await own.scan({ project: "acme/web", branch: "feature-1", pullRequest: "1" }, osv("package-lock.json", minimist, requests, axios));
+    const o = await json(await own.admin("/api/v1/overview"));
+    expect(o.open).toEqual({ critical: 0, high: 1, medium: 1, low: 0 });
+    expect(o.days).toHaveLength(30);
+    expect(o.days.at(-1).open).toEqual(o.open);
+    expect(o.weeks).toHaveLength(12);
+    expect(o.weeks.at(-1)).toEqual({ week: expect.any(String), new: 3, fixed: 1 });
+    expect(o.topPackages[0]).toMatchObject({ package: "requests", ecosystem: "PyPI", open: 1, projects: 1, severity: "high" });
+    expect(o.topProjects).toEqual([{ id: expect.any(String), name: "acme/web", open: 2, critical: 0 }]);
+    expect(o.checks).toEqual({ days7: { passed: 0, failed: 1 }, days30: { passed: 0, failed: 1 } });
+  });
+});

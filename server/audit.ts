@@ -61,6 +61,8 @@ export function parseLimit(value: string | null, max = 500, fallback = 100): num
 }
 
 export type Counts = Record<Severity, number>;
+const DAY = 86_400_000;
+const SEVERITY_BY_RANK = ["low", "low", "medium", "high", "critical"] as const;
 const zero = (): Counts => ({ critical: 0, high: 0, medium: 0, low: 0 });
 
 export interface FindingFilter {
@@ -412,6 +414,60 @@ export function createAudit(db: DatabaseSync, { retentionDays = 365 }: AuditOpti
       ).n;
       const lastScanAt = (db.prepare("SELECT MAX(created_at) AS t FROM scans").get() as { t: string | null }).t;
       return { projects, open: openCounts(), suppressed, fixable, failingChecks: failing, lastScanAt };
+    },
+
+    /** What the overview draws: open by severity each day, found and fixed each week, the packages and projects with the most open, and checks. */
+    overview() {
+      const at = now();
+      const today = Math.floor(Date.parse(at) / DAY) * DAY;
+      // Open at the end of each day: found by then, not fixed by then, and not set aside by a decision in force then.
+      const openAt = db.prepare(
+        `SELECT severity, COUNT(*) AS n FROM findings
+         WHERE first_seen <= ? AND (resolved_at IS NULL OR resolved_at > ?)
+           AND NOT (triage <> 'open' AND triaged_at <= ? AND (expires_at IS NULL OR expires_at > ?))
+         GROUP BY severity`,
+      );
+      const days = Array.from({ length: 30 }, (_, i) => {
+        const start = today - (29 - i) * DAY;
+        const end = i === 29 ? at : new Date(start + DAY).toISOString();
+        const open = zero();
+        for (const r of openAt.all(end, end, end, end) as Array<{ severity: Severity; n: number }>) open[r.severity] = r.n;
+        return { day: new Date(start).toISOString().slice(0, 10), open };
+      });
+      const found = db.prepare("SELECT COUNT(*) AS n FROM findings WHERE first_seen >= ? AND first_seen < ?");
+      const fixed = db.prepare("SELECT COUNT(*) AS n FROM findings WHERE resolved_at >= ? AND resolved_at < ?");
+      const weeks = Array.from({ length: 12 }, (_, i) => {
+        const start = new Date(today + DAY - (12 - i) * 7 * DAY).toISOString();
+        const end = new Date(today + DAY - (11 - i) * 7 * DAY).toISOString();
+        return { week: start.slice(0, 10), new: (found.get(start, end) as { n: number }).n, fixed: (fixed.get(start, end) as { n: number }).n };
+      });
+      const topPackages = (
+        db
+          .prepare(
+            `SELECT ecosystem, package, COUNT(DISTINCT advisory) AS n, MAX(${RANK_SQL}) AS rank, COUNT(DISTINCT project_id) AS projects FROM findings
+             WHERE resolved_at IS NULL AND NOT ${SUPPRESSED} GROUP BY ecosystem, package ORDER BY rank DESC, n DESC, package LIMIT 8`,
+          )
+          .all(at) as Array<{ ecosystem: string; package: string; n: number; rank: number; projects: number }>
+      ).map((r) => ({ ecosystem: r.ecosystem, package: r.package, open: r.n, projects: r.projects, severity: SEVERITY_BY_RANK[r.rank]! }));
+      const topProjects = (
+        db
+          .prepare(
+            `SELECT p.id, p.name, COUNT(*) AS n, SUM(f.severity = 'critical') AS critical FROM findings f JOIN projects p ON p.id = f.project_id
+             WHERE f.resolved_at IS NULL AND NOT ${SUPPRESSED} GROUP BY p.id ORDER BY critical DESC, n DESC, p.name LIMIT 8`,
+          )
+          .all(at) as Array<{ id: string; name: string; n: number; critical: number }>
+      ).map((r) => ({ id: r.id, name: r.name, open: r.n, critical: r.critical }));
+      const checks = (n: number) => {
+        const since = new Date(Date.parse(at) - n * DAY).toISOString();
+        const r = db
+          .prepare("SELECT SUM(blocking = 0) AS passed, SUM(blocking > 0) AS failed FROM scans WHERE kind = 'change' AND created_at > ?")
+          .get(since) as {
+          passed: number | null;
+          failed: number | null;
+        };
+        return { passed: r.passed ?? 0, failed: r.failed ?? 0 };
+      };
+      return { open: openCounts(), days, weeks, topPackages, topProjects, checks: { days7: checks(7), days30: checks(30) } };
     },
 
     severityTotals: () => openCounts(),

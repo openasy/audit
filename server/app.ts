@@ -201,6 +201,7 @@ export function createApp({ db, audit, version, auth, adminToken, ingestToken, w
     { method: "GET", path: "/api/v1/version", auth: "none", handle: () => ({ product: "audit", version }) },
     { method: "GET", path: "/api/v1/products", auth: "viewer", handle: () => ({ products }) },
     { method: "GET", path: "/api/v1/summary", auth: "viewer", handle: () => audit.summary() },
+    { method: "GET", path: "/api/v1/overview", auth: "viewer", handle: () => audit.overview() },
 
     // An osv-scanner or SARIF report in, from CI. The answer says whether the check passes, so a pipeline can fail on it.
     {

@@ -173,6 +173,7 @@ describe("responses match openapi.json", () => {
     await put(fingerprint, { state: "open" });
     await call("PUT", "/api/v1/projects/{id}/findings/{fingerprint}", { method: "PUT" }, `/api/v1/projects/${project}/findings/${fingerprint}`);
     await call("GET", "/api/v1/summary", admin());
+    await call("GET", "/api/v1/overview", admin());
     await call("GET", "/api/v1/summary", {});
   });
 

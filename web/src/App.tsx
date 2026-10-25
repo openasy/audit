@@ -23,16 +23,41 @@ import {
   TextField,
   TimeSeriesChart,
   usePath,
-  type Column,
-  type ProductId,
   useThemePreference,
   useAgo,
   toLocale,
   useLocalePreference,
+  BarList,
+  DonutChart,
+  Gauge,
+  OverviewGrid,
+  SEVERITY_META,
+  StackedBarChart,
+  TONE_COLORS,
+  type Column,
+  type ProductId,
 } from "@openasy/ui";
 import { AccountSettings, AuthGate, MembersSettings, SignInSettings, TokensSettings, useAccountMenu, useAuth, useInstallBrand } from "@openasy/auth/react";
 import colophon from "virtual:openasy-colophon";
-import { Bug, CircleSlash, FolderGit2, Package, KeyRound, LogIn, LogOut, Trash2, UserRound, Users, X } from "lucide-react";
+import {
+  Bug,
+  CircleAlert,
+  CircleSlash,
+  CircleX,
+  FolderGit2,
+  KeyRound,
+  LayoutDashboard,
+  LogIn,
+  LogOut,
+  Package,
+  ShieldAlert,
+  Trash2,
+  TriangleAlert,
+  UserRound,
+  Users,
+  Wrench,
+  X,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import {
   api,
@@ -41,6 +66,7 @@ import {
   type FailOn,
   type Finding,
   type PackageUse,
+  type Overview,
   type ProductLink,
   type Project,
   type Scan,
@@ -52,15 +78,16 @@ import { useT, type T } from "./i18n.ts";
 import { search } from "./search.ts";
 
 const PAGES = ["projects", "packages", "setup", "account", "members", "signin", "tokens", "about"] as const;
-type Route = { page: "findings" | (typeof PAGES)[number] } | { page: "project" | "scan"; id: string };
+type Route = { page: "overview" | "findings" | (typeof PAGES)[number] } | { page: "project" | "scan"; id: string };
 /** The first path segments that are pages of this UI, for followLinks. */
-export const PATHS = ["findings", "projects", "scans", ...PAGES];
+export const PATHS = ["overview", "findings", "projects", "scans", ...PAGES];
 function parseRoute(path: string): Route {
   const [page, id] = path.replace(/^\//, "").split("/");
   if (page === "projects" && id) return { page: "project", id: decodeURIComponent(id) };
   if (page === "scans" && id) return { page: "scan", id: decodeURIComponent(id) };
   if ((PAGES as readonly string[]).includes(page ?? "")) return { page: page as (typeof PAGES)[number] };
-  return { page: "findings" };
+  if (page === "findings") return { page: "findings" };
+  return { page: "overview" };
 }
 
 /** Data loading with the session; when it ends, the sign-in screen comes back. */
@@ -441,6 +468,149 @@ function FindingsTable({
   );
 }
 
+function OverviewPage({ call, summary }: { call: Call; summary?: Summary }) {
+  const ago = useAgo();
+  const t = useT();
+  const [o, setO] = useState<Overview>();
+  useEffect(() => void call<Overview>("/api/v1/overview").then(setO, () => {}), [call, summary]);
+  const s = summary;
+  const day = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" });
+  const color = (sev: Severity) => TONE_COLORS[SEVERITY_META[sev].tone];
+  const checks = o ? o.checks.days30.passed + o.checks.days30.failed : 0;
+  return (
+    <>
+      <PageHeader
+        title={t("overviewPage.overview")}
+        description={s ? t("findingsPage.lastScan", { plural: t("plurals.project", { count: s.projects }), ago: ago(s.lastScanAt) }) : undefined}
+      />
+      {s && (
+        <KpiGrid minWidth={150}>
+          <KpiCard
+            label={t("findingsPage.critical")}
+            value={s.open.critical}
+            icon={ShieldAlert}
+            tone={s.open.critical ? "critical" : undefined}
+            trend={o?.days.map((d) => d.open.critical)}
+            trendColor={TONE_COLORS.critical}
+            href="/findings"
+          />
+          <KpiCard
+            label={t("findingsPage.high")}
+            value={s.open.high}
+            icon={TriangleAlert}
+            tone={s.open.high ? "danger" : undefined}
+            trend={o?.days.map((d) => d.open.high)}
+            trendColor={TONE_COLORS.danger}
+            href="/findings"
+          />
+          <KpiCard
+            label={t("findingsPage.medium")}
+            value={s.open.medium}
+            icon={CircleAlert}
+            trend={o?.days.map((d) => d.open.medium)}
+            trendColor={TONE_COLORS.warning}
+          />
+          <KpiCard label={t("findingsPage.fixAvailable")} value={s.fixable} icon={Wrench} tone="info" />
+          <KpiCard label={t("findingsPage.failedChecks7Days")} value={s.failingChecks} icon={CircleX} tone={s.failingChecks ? "warning" : "success"} />
+          <KpiCard label={t("findingsPage.decidedAbout")} value={s.suppressed} icon={CircleSlash} tone="info" />
+        </KpiGrid>
+      )}
+      {o && (
+        <OverviewGrid>
+          <Panel title={t("overviewPage.openOverTime")} description={t("overviewPage.openOverTimeDetail")}>
+            <StackedBarChart
+              label={t("overviewPage.openOverTime")}
+              categories={o.days.map((d) => day(d.day))}
+              segments={(["low", "medium", "high", "critical"] as const).map((k) => ({ id: k, name: t(`findingsPage.${k}`), color: color(k) }))}
+              values={o.days.map((d) => [d.open.low, d.open.medium, d.open.high, d.open.critical])}
+              height={190}
+              xTicks={6}
+            />
+          </Panel>
+          <Panel title={t("overviewPage.bySeverity")} description={t("overviewPage.bySeverityDetail")}>
+            <DonutChart
+              label={t("overviewPage.bySeverity")}
+              caption={t("overviewPage.open")}
+              slices={(["critical", "high", "medium", "low"] as const).map((k) => ({
+                id: k,
+                name: t(`findingsPage.${k}`),
+                value: o.open[k],
+                color: color(k),
+                href: "/findings",
+              }))}
+            />
+          </Panel>
+        </OverviewGrid>
+      )}
+      {o && (
+        <OverviewGrid>
+          <Panel title={t("overviewPage.foundAndFixed")} description={t("overviewPage.foundAndFixedDetail")}>
+            <TimeSeriesChart
+              label={t("overviewPage.foundAndFixed")}
+              labels={o.weeks.map((w) => day(w.week))}
+              height={190}
+              xTicks={6}
+              series={[
+                { id: "new", name: t("overviewPage.found"), data: o.weeks.map((w) => w.new), color: TONE_COLORS.danger },
+                { id: "fixed", name: t("overviewPage.fixed"), data: o.weeks.map((w) => w.fixed), color: TONE_COLORS.success },
+              ]}
+            />
+          </Panel>
+          <Panel title={t("overviewPage.checksPassed")} description={t("overviewPage.checksPassedDetail")}>
+            {checks ? (
+              <Gauge
+                label={t("overviewPage.checksPassed")}
+                value={o.checks.days30.passed}
+                max={checks}
+                tone={o.checks.days30.failed === 0 ? "success" : o.checks.days30.passed / checks >= 0.8 ? "warning" : "danger"}
+                caption={t("overviewPage.passedOfAll", { passed: o.checks.days30.passed, total: checks })}
+              />
+            ) : (
+              <EmptyState title={t("overviewPage.noChecks")} />
+            )}
+          </Panel>
+        </OverviewGrid>
+      )}
+      {o && (
+        <OverviewGrid layout="halves">
+          <Panel title={t("overviewPage.top1")} description={t("overviewPage.top1Detail")}>
+            {o.topPackages.length ? (
+              <BarList
+                label={t("overviewPage.top1")}
+                items={o.topPackages.map((x) => ({
+                  id: `${x.ecosystem}:${x.package}`,
+                  label: <span title={`${x.ecosystem} · ${t("overviewPage.inProjects", { count: x.projects })}`}>{x.package}</span>,
+                  value: x.open,
+                  color: color(x.severity),
+                  href: "/packages",
+                }))}
+              />
+            ) : (
+              <EmptyState title={t("overviewPage.nothingOpen")} />
+            )}
+          </Panel>
+          <Panel title={t("overviewPage.top2")} description={t("overviewPage.top2Detail")}>
+            {o.topProjects.length ? (
+              <BarList
+                label={t("overviewPage.top2")}
+                items={o.topProjects.map((x) => ({
+                  id: x.id,
+                  label: <span title={x.name}>{x.name}</span>,
+                  value: x.open,
+                  href: `/projects/${x.id}`,
+                  color: x.critical ? TONE_COLORS.critical : undefined,
+                }))}
+              />
+            ) : (
+              <EmptyState title={t("overviewPage.nothingOpen")} />
+            )}
+          </Panel>
+        </OverviewGrid>
+      )}
+    </>
+  );
+}
+
 function FindingsPage({ call, summary, reload }: { call: Call; summary?: Summary; reload: () => void }) {
   const ago = useAgo();
   const t = useT();
@@ -451,17 +621,6 @@ function FindingsPage({ call, summary, reload }: { call: Call; summary?: Summary
         title={t("findingsPage.findings")}
         description={s ? t("findingsPage.lastScan", { plural: t("plurals.project", { count: s.projects }), ago: ago(s.lastScanAt) }) : undefined}
       />
-      {s && (
-        <KpiGrid minWidth={150}>
-          <KpiCard label={t("findingsPage.critical")} value={s.open.critical} footer={<SeverityBadge severity="critical" />} />
-          <KpiCard label={t("findingsPage.high")} value={s.open.high} footer={<SeverityBadge severity="high" />} />
-          <KpiCard label={t("findingsPage.medium")} value={s.open.medium} footer={<SeverityBadge severity="medium" />} />
-          <KpiCard label={t("findingsPage.low")} value={s.open.low} footer={<SeverityBadge severity="low" />} />
-          <KpiCard label={t("findingsPage.fixAvailable")} value={s.fixable} tone="info" />
-          <KpiCard label={t("findingsPage.failedChecks7Days")} value={s.failingChecks} tone={s.failingChecks ? "warning" : "success"} />
-          <KpiCard label={t("findingsPage.decidedAbout")} value={s.suppressed} tone="info" />
-        </KpiGrid>
-      )}
       <FindingsTable call={call} summary={s} reload={reload} />
     </>
   );
@@ -988,6 +1147,7 @@ function Product() {
   }, [reload]);
 
   const nav = [
+    { id: "overview", label: msg("product.overview"), icon: LayoutDashboard },
     { id: "findings", label: msg("product.findings"), icon: Bug },
     { id: "projects", label: msg("product.projects"), icon: FolderGit2, count: summary?.projects },
     { id: "packages", label: msg("product.packages"), icon: Package },
@@ -1025,8 +1185,10 @@ function Product() {
       onThemeChange={setTheme}
       onLanguageChange={(code) => setLocale(toLocale(code))}
     >
-      {route.page === "findings" && summary && summary.projects === 0 ? (
+      {(route.page === "overview" || route.page === "findings") && summary && summary.projects === 0 ? (
         <WelcomePage />
+      ) : route.page === "overview" ? (
+        <OverviewPage call={call} summary={summary} />
       ) : route.page === "findings" ? (
         <FindingsPage call={call} summary={summary} reload={reload} />
       ) : route.page === "packages" ? (
