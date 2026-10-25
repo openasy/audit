@@ -21,16 +21,19 @@ import {
   StatusBadge,
   Tabs,
   TextField,
+  TimeSeriesChart,
   usePath,
   type Column,
   type ProductId,
   useThemePreference,
   useAgo,
+  toLocale,
+  useLocalePreference,
 } from "@openasy/ui";
-import { AccountSettings, AuthGate, MembersSettings, SignInSettings, TokensSettings, useAuth, useInstallBrand } from "@openasy/auth/react";
+import { AccountSettings, AuthGate, MembersSettings, SignInSettings, TokensSettings, useAccountMenu, useAuth, useInstallBrand } from "@openasy/auth/react";
 import colophon from "virtual:openasy-colophon";
-import { Bug, CircleSlash, FolderGit2, Package, KeyRound, LogIn, LogOut, Settings2, Trash2, UserRound, Users, X } from "lucide-react";
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { Bug, CircleSlash, FolderGit2, Package, KeyRound, LogIn, LogOut, Trash2, UserRound, Users, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import {
   api,
   MfaSetupRequired,
@@ -46,6 +49,7 @@ import {
   type Summary,
 } from "./api.ts";
 import { useT, type T } from "./i18n.ts";
+import { search } from "./search.ts";
 
 const PAGES = ["projects", "packages", "setup", "account", "members", "signin", "tokens", "about"] as const;
 type Route = { page: "findings" | (typeof PAGES)[number] } | { page: "project" | "scan"; id: string };
@@ -579,6 +583,8 @@ function ProjectPage({ call, id, reload }: { call: Call; id: string; reload: () 
       </EmptyState>
     );
 
+  // The default branch's scans, oldest first; a change scan reports a pull request, not the project.
+  const baselines = (scans ?? []).filter((s) => s.kind === "baseline").reverse();
   const columns: Column<Scan>[] = [
     {
       id: "when",
@@ -658,6 +664,20 @@ function ProjectPage({ call, id, reload }: { call: Call; id: string; reload: () 
         </Panel>
       )}
       <FindingsTable call={call} projectId={id} summary={repo ?? undefined} reload={() => (load(), reload())} />
+      {baselines.length > 1 && (
+        <Panel title={t("projectPage.findingsOverTime")} description={t("projectPage.whatEachScanOfThe")}>
+          <TimeSeriesChart
+            label={t("projectPage.findingsInEachScanOf", { name: repo?.name ?? t("projectPage.project") })}
+            series={[
+              { id: "total", name: t("projectPage.reported"), data: baselines.map((s) => s.total) },
+              { id: "new", name: t("projectPage.new"), data: baselines.map((s) => s.new) },
+            ]}
+            labels={baselines.map((s) => new Date(s.createdAt).toLocaleDateString())}
+            area={false}
+            height={160}
+          />
+        </Panel>
+      )}
       <Panel title={t("projectPage.scans")} flush>
         <DataTable
           label={t("projectPage.scans")}
@@ -944,11 +964,14 @@ function SettingsPage({ page }: { page: "account" | "members" | "signin" | "toke
 function Product() {
   const msg = useT();
   const [theme, setTheme] = useThemePreference();
+  const [, setLocale] = useLocalePreference();
   const { me, can } = useAuth();
+  const account = useAccountMenu();
   const route = parseRoute(usePath());
   const [summary, setSummary] = useState<Summary>();
   const [products, setProducts] = useState<Array<ProductLink & { id: ProductId }>>([]);
   const call = useApi();
+  const onSearch = useMemo(() => search(call, msg), [call, msg]);
 
   // The install's other products (OPENASY_PRODUCTS), for the switcher; ids this UI does not know are left out.
   useEffect(() => {
@@ -971,7 +994,6 @@ function Product() {
     { id: "packages", label: msg("product.packages"), icon: Package },
   ];
   const footerNav = [
-    { id: "setup", label: msg("product.setup"), icon: Settings2 },
     ...(can("admin")
       ? [
           { id: "members", label: msg("product.members"), icon: Users },
@@ -987,6 +1009,7 @@ function Product() {
   return (
     <AppShell
       product="audit"
+      onSearch={onSearch}
       about={colophon}
       nav={nav}
       activeNav={active}
@@ -996,10 +1019,12 @@ function Product() {
         const to = products.find((p) => p.id === id);
         if (to) window.location.assign(to.url);
       }}
-      footerNav={footerNav}
-      user={{ name: me.user.name, role: roleName }}
+      footerNav={account.settings(footerNav)}
+      setup
+      user={{ name: me.user.name, role: roleName, ...account.user }}
       theme={theme}
       onThemeChange={setTheme}
+      onLanguageChange={(code) => setLocale(toLocale(code))}
     >
       {route.page === "findings" && summary && summary.projects === 0 ? (
         <WelcomePage />
@@ -1025,9 +1050,10 @@ function Product() {
 export function App() {
   const installBrand = useInstallBrand();
   const [theme] = useThemePreference();
+  const [locale] = useLocalePreference();
   return (
     // The install's brand from config/brand.env (ADR 0053); OpenAsy's own look where it sets none.
-    <BrandProvider theme={theme} brand={{ name: "OpenAsy", organization: undefined, ...installBrand }} className="min-h-screen">
+    <BrandProvider theme={theme} locale={locale} brand={{ name: "OpenAsy", organization: undefined, ...installBrand }} className="min-h-screen">
       <AuthGate product="OpenAsy Audit">
         <Product />
       </AuthGate>
