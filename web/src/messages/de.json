@@ -147,7 +147,6 @@
     "packages": "Pakete",
     "whereAPackageIsUsed": "Wo ein Paket verwendet wird, im Standard-Branch jedes Projekts. Ein neues Advisory für ein Paket zeigt, wer betroffen ist.",
     "searchPackage": "Paket suchen",
-    "all": "Alle",
     "go": "Go",
     "cargo": "Cargo",
     "composer": "Composer",

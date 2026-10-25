@@ -843,12 +843,11 @@ function PackagesPage({ call }: { call: Call }) {
         actions={<SearchInput label={t("packagesPage.searchPackage")} className="w-64" value={q} onChange={(e) => setQ(e.target.value)} />}
       />
       <FilterBar onClear={() => (setQ(""), setEcosystem(""))}>
-        <SelectField
+        <FacetFilter
           label={t("packagesPage.ecosystem")}
-          value={ecosystem}
-          onChange={(e) => setEcosystem(e.target.value)}
+          selected={ecosystem ? [ecosystem] : []}
+          onChange={(v) => setEcosystem(v[v.length - 1] ?? "")}
           options={[
-            { value: "", label: t("packagesPage.all") },
             { value: "npm", label: "npm" },
             { value: "PyPI", label: "PyPI" },
             { value: "Go", label: t("packagesPage.go") },

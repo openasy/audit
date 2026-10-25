@@ -147,7 +147,6 @@
     "packages": "Packages",
     "whereAPackageIsUsed": "Where a package is used, on the default branch of every project. A new advisory in a package shows who is affected.",
     "searchPackage": "Search package",
-    "all": "All",
     "go": "Go",
     "cargo": "Cargo",
     "composer": "Composer",

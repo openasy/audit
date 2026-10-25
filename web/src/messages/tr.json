@@ -147,7 +147,6 @@
     "packages": "Paketler",
     "whereAPackageIsUsed": "Bir paketin her projenin varsayılan dalında nerede kullanıldığı. Bir pakette çıkan yeni bir bildirim, kimin etkilendiğini gösterir.",
     "searchPackage": "Paket ara",
-    "all": "Tümü",
     "go": "Go",
     "cargo": "Cargo",
     "composer": "Composer",
