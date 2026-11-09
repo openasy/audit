@@ -1,6 +1,6 @@
 {
   "name": "@openasy/audit",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "description": "OpenAsy Audit: known vulnerabilities in the dependencies of every project, where only what a change adds can fail it.",
   "license": "AGPL-3.0-only",
